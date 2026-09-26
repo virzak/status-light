@@ -1,0 +1,3 @@
+* text=auto eol=lf
+router/netled text eol=lf
+router/netled.init text eol=lf

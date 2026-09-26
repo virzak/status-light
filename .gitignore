@@ -1,0 +1,10 @@
+# Firmware images downloaded for flashing
+*.bin
+# Python / uv leftovers
+__pycache__/
+.venv/
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

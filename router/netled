@@ -1,0 +1,42 @@
+#!/bin/sh
+# Internet status light: feeds the ESP32-S3 on USB serial (see /etc/init.d/netled).
+# B = online, A = first failures / reconnecting, R = offline (3+ failed rounds, ~15 s).
+INTERVAL=5
+TARGETS="1.1.1.1 8.8.8.8 9.9.9.9"
+
+find_tty() {
+  for d in /sys/bus/usb/devices/*; do
+    [ "$(cat "$d/idVendor" 2>/dev/null)" = "303a" ] || continue
+    for t in "$d"/*/tty/ttyACM*; do
+      [ -e "$t" ] && { echo "/dev/${t##*/}"; return 0; }
+    done
+  done
+  return 1
+}
+
+online() {
+  for ip in $TARGETS; do
+    ping -c 1 -W 2 "$ip" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+while true; do
+  tty=$(find_tty) || { sleep "$INTERVAL"; continue; }
+  logger -t netled "using $tty"
+  exec 3>"$tty" || { sleep "$INTERVAL"; continue; }
+  fails=0
+  while [ -e "$tty" ]; do
+    if online; then
+      fails=0
+      state=B
+    else
+      fails=$((fails + 1))
+      [ "$fails" -ge 3 ] && state=R || state=A
+    fi
+    echo "$state" >&3 2>/dev/null || break
+    sleep "$INTERVAL"
+  done
+  exec 3>&-
+  logger -t netled "lost $tty"
+done
