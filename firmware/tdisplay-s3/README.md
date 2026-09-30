@@ -39,12 +39,8 @@ this is a compiled binary flashed with espflash.
 
 ## Status
 
-Not yet compile-tested (the authoring session had no Xtensa toolchain). Two spots
-to check on the first build, both marked `VERIFY` in `src/main.rs`:
-
-- the USB Serial/JTAG async API for esp-hal ~1.2.2 (`into_async`, `split` order,
-  the `embedded-io-async` `Read` impl);
-- that esp-rtos starts cleanly with only the `embassy` and `esp-alloc` features.
+Builds clean (`cargo build --release`) against esp-hal 1.2.2 on the `esp`
+toolchain. Not yet flashed to hardware or visually confirmed.
 
 The flame is a Doom-style fire on a heat grid with a blue palette (black, navy,
 blue, cyan, white tip), drawn into the board's `FrameBuffer` and flushed over DMA.

@@ -5,9 +5,8 @@
 //! animated blue flame; the other states are static colour + label screens.
 //! The router side (`router/netled`) is shared with the WS2812 board, unchanged.
 //!
-//! Build/flash notes are in README.md. Not compile-tested in the authoring
-//! session (no Xtensa toolchain there); the two spots to check on first build
-//! are marked `VERIFY`.
+//! Build/flash notes are in README.md. Builds clean against esp-hal 1.2.2 on the
+//! `esp` toolchain.
 
 #![no_std]
 #![no_main]
@@ -27,7 +26,7 @@ use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::rng::Rng;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::usb_serial_jtag::UsbSerialJtag;
+use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
 use lilygo_t_display_s3::{Board, FrameBuffer, HEIGHT, Lcd, WIDTH, resources};
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -212,10 +211,7 @@ async fn main(_spawner: Spawner) -> ! {
     // USB Serial/JTAG is the link to the router (it enumerates under vendor 303a
     // as a ttyACM, which netled finds). We drive it directly and leave
     // esp-println's logger uninitialised so nothing else owns this peripheral.
-    //
-    // VERIFY: the exact async API for esp-hal ~1.2.2 - `into_async()`, the order
-    // of `split()`, and the embedded-io-async `Read` impl. See
-    // https://docs.rs/esp-hal/1.2.2/esp_hal/usb_serial_jtag/index.html
+    // split() yields (rx, tx); async Read comes from embedded-io-async.
     let usb = UsbSerialJtag::new(peripherals.USB_DEVICE).into_async();
     let (mut rx, _tx) = usb.split();
 
