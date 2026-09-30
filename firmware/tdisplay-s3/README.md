@@ -40,7 +40,12 @@ this is a compiled binary flashed with espflash.
 ## Status
 
 Builds clean (`cargo build --release`) against esp-hal 1.2.2 on the `esp`
-toolchain. Not yet flashed to hardware or visually confirmed.
+toolchain, flashed to a board, and the blue flame renders when fed `B`.
+
+Note when testing from a PC: opening/closing the USB serial port toggles the
+reset line and drops the ESP32-S3 into ROM download mode (blank screen), so a
+persistent feed is best done from the router, where netled drives it like the
+WS2812 board with no resets.
 
 The flame is a Doom-style fire on a heat grid with a blue palette (black, navy,
 blue, cyan, white tip), drawn into the board's `FrameBuffer` and flushed over DMA.
