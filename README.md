@@ -1,7 +1,14 @@
 # status-light
 
-Internet status LED for the GL.iNet Flint 4 (GL-BE14000) router, using a
-Waveshare ESP32-S3-Zero plugged into the router's spare USB port.
+Internet status indicator for the GL.iNet Flint 4 (GL-BE14000) router. A monitor
+on the router decides the state and drives a small display board plugged into a
+USB port. Two display boards are supported, both ESP32-S3:
+
+- `firmware/zero-ws2812` - a single WS2812 LED on a Waveshare ESP32-S3-Zero (MicroPython).
+- `firmware/tdisplay-s3` - a 170x320 colour LCD on a LilyGO T-Display-S3 (Rust).
+
+Both speak the same serial contract in `PROTOCOL.md`, so the router side is shared.
+The table below is the WS2812 board's rendering.
 
 | Light         | Meaning                                                   |
 |---------------|-----------------------------------------------------------|
@@ -13,21 +20,22 @@ Waveshare ESP32-S3-Zero plugged into the router's spare USB port.
 
 ## Layout
 
-- `firmware/main.py` - MicroPython program on the board. Reads one command per
-  line on USB serial: `B` blue, `R` red, `A` amber, `G` green, `W` white, `O` off.
-  The WS2812 LED is on GPIO21 and takes RGB order, not the usual GRB.
+- `PROTOCOL.md` - the serial contract every display board implements.
 - `router/netled` - monitor loop, installed as `/usr/bin/netled`. Finds the board
-  by USB vendor ID `303a`, pings 1.1.1.1 / 8.8.8.8 / 9.9.9.9 every 5 s and writes
-  the state.
+  by USB vendor ID `303a`, checks connectivity every 5 s and writes the state.
 - `router/netled.init` - procd service, installed as `/etc/init.d/netled`.
-- `scripts/` - push a new `main.py` to the board through the router (see below).
+- `firmware/zero-ws2812/main.py` - MicroPython for the single-LED board. The WS2812
+  is on GPIO21 and takes RGB order, not the usual GRB. Includes `push.sh` and
+  `board-push.sh` to update it through the router (see below).
+- `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
+  build and flash notes live in that directory.
 
-## Flashing the board
+## Flashing the WS2812 board (MicroPython)
 
 ```
 uvx --from esptool esptool --port COMx erase-flash
 uvx --from esptool esptool --port COMx --baud 460800 write-flash 0 ESP32_GENERIC_S3-<date>-v1.29.0.bin
-uvx mpremote connect COMx fs cp firmware/main.py :main.py + reset
+uvx mpremote connect COMx fs cp firmware/zero-ws2812/main.py :main.py + reset
 ```
 
 Firmware: https://micropython.org/download/ESP32_GENERIC_S3/ . The COM port
@@ -36,7 +44,7 @@ number changes after flashing.
 To update `main.py` later without unplugging the board from the router:
 
 ```
-ROUTER=user@router scripts/push-firmware.sh
+ROUTER=user@router firmware/zero-ws2812/push.sh
 ```
 
 It stops `netled`, writes the file through the MicroPython raw REPL on the
