@@ -65,3 +65,33 @@ and the blue/green/white palette thresholds); every change prints the current
 `FlameParams` as a Rust literal. When it looks right, paste that into
 `FlameParams::default()` in `firmware/flame/src/lib.rs`, then rebuild and reflash
 this firmware.
+
+## Flashing in place via the router
+
+The board can be reflashed without unplugging it, the same convenience the WS2812
+board has. You still build on a PC (the Xtensa build cannot run on the router),
+but the image is pushed to the router, which flashes the board over USB with its
+own `espflash`.
+
+One-time: build `espflash` for the router (aarch64 musl) and install it. The
+19 MB binary is not committed; rebuild it with Docker:
+
+```
+docker run --rm -v "$PWD/out:/out" messense/rust-musl-cross:aarch64-musl \
+  cargo install espflash --version 4.6.0 --root /out --locked --no-track
+scp -O out/bin/espflash "$ROUTER:/tmp/" && \
+  ssh "$ROUTER" 'sudo install -m 755 /tmp/espflash /usr/bin/espflash'
+```
+
+`espflash` builds static and udev-free here because 4.6.0 sets the `serialport`
+dependency to `default-features = false`.
+
+Then, to build and flash in place:
+
+```
+ROUTER=user@router firmware/tdisplay-s3/push-router.sh
+```
+
+It builds release, copies the ELF and `router-flash.sh` to the router, and runs
+the router-side script, which stops `netled`, flashes over the board's `ttyACM`,
+resets it, and restarts `netled`.
