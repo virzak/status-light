@@ -1,8 +1,7 @@
 #!/bin/sh
-# Internet status light: feeds the ESP32-S3 on USB serial (see /etc/init.d/netled).
+# Internet status: feeds the ESP32-S3 on USB serial (see /etc/init.d/netled).
 # B = online, A = first failures / reconnecting, R = offline (3+ failed rounds, ~15 s).
 INTERVAL=5
-TARGETS="1.1.1.1 8.8.8.8 9.9.9.9"
 
 find_tty() {
   for d in /sys/bus/usb/devices/*; do
@@ -14,9 +13,16 @@ find_tty() {
   return 1
 }
 
+# Internet check. ICMP is unreliable on some ISP paths (Bell's PPPoE silently
+# drops ping, including to the on-link peer), so probe real connectivity with a
+# DNS query sent over the WAN to public resolvers. Any resolver answering within
+# the timeout means we are online. `timeout` guards against a hung query.
+RESOLVERS="1.1.1.1 8.8.8.8 9.9.9.9"
+PROBE_NAME="cloudflare.com"
+
 online() {
-  for ip in $TARGETS; do
-    ping -c 1 -W 2 "$ip" >/dev/null 2>&1 && return 0
+  for r in $RESOLVERS; do
+    timeout 3 nslookup "$PROBE_NAME" "$r" >/dev/null 2>&1 && return 0
   done
   return 1
 }
