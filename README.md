@@ -29,6 +29,9 @@ The table below is the WS2812 board's rendering.
   `board-push.sh` to update it through the router (see below).
 - `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
   build and flash notes live in that directory.
+- `firmware/flame/` - the blue-flame effect as a shared `no_std` crate, used by
+  the LCD firmware and the PC preview so both run identical code.
+- `firmware/flame-preview/` - a PC window that runs the flame for live tuning.
 
 ## Flashing the WS2812 board (MicroPython)
 

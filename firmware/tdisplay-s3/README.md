@@ -49,3 +49,19 @@ WS2812 board with no resets.
 
 The flame is a Doom-style fire on a heat grid with a blue palette (black, navy,
 blue, cyan, white tip), drawn into the board's `FrameBuffer` and flushed over DMA.
+
+## Tuning the flame
+
+The flame lives in the shared `firmware/flame` crate, which this firmware and the
+PC preview both use, so tuning on the PC changes exactly what ships. From
+`firmware/flame-preview/`:
+
+```
+cargo run --release
+```
+
+A scaled window opens. Adjust with the keys it prints (cooling, drift, flicker,
+and the blue/green/white palette thresholds); every change prints the current
+`FlameParams` as a Rust literal. When it looks right, paste that into
+`FlameParams::default()` in `firmware/flame/src/lib.rs`, then rebuild and reflash
+this firmware.

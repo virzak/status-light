@@ -1,0 +1,9 @@
+[package]
+name    = "flame"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Shared no_std blue-flame effect for the internet-status display (board + PC preview)"
+
+[dependencies]
+embedded-graphics-core = "0.4.0"

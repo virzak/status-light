@@ -1010,6 +1010,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 
 [[package]]
+name = "flame"
+version = "0.1.0"
+dependencies = [
+ "embedded-graphics-core",
+]
+
+[[package]]
 name = "float-cmp"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1687,6 +1694,7 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "esp-rtos",
+ "flame",
  "lilygo-t-display-s3",
 ]
 

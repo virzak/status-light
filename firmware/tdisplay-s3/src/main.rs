@@ -24,9 +24,9 @@ use embedded_graphics::text::{Alignment, Text};
 use embedded_io_async::Read;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
-use esp_hal::rng::Rng;
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
+use flame::{Flame, FlameParams};
 use lilygo_t_display_s3::{Board, FrameBuffer, HEIGHT, Lcd, WIDTH, resources};
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -88,56 +88,6 @@ impl State {
             Self::Off => "",
             Self::NoSignal => "NO SIGNAL FROM ROUTER",
         }
-    }
-}
-
-/// Blue-fire palette: heat 0..=255 -> black, navy, blue, cyan, white tip.
-fn build_palette() -> [Rgb565; 256] {
-    let mut p = [Rgb565::BLACK; 256];
-    let mut h = 0usize;
-    while h < 256 {
-        let hv = h as u32;
-        // Blue rises first and saturates early; green joins for cyan as it gets
-        // hotter; red only near the top, for a white flame tip.
-        let b = (hv * 255 / 170).min(255);
-        let g = if hv > 100 { ((hv - 100) * 255 / 155).min(255) } else { 0 };
-        let r = if hv > 200 { ((hv - 200) * 255 / 55).min(255) } else { 0 };
-        p[h] = Rgb565::new((r >> 3) as u8, (g >> 2) as u8, (b >> 3) as u8);
-        h += 1;
-    }
-    p
-}
-
-/// One step of a Doom-style fire, seeded along the bottom row, rising upward.
-fn step_fire(heat: &mut [u8], rng: &mut Rng) {
-    // Seed the bottom row hot, with a little flicker.
-    for x in 0..W {
-        heat[(H - 1) * W + x] = if rng.random() & 7 == 0 { 170 } else { 255 };
-    }
-    // Spread: each source cell feeds a cell one row up, drifting horizontally.
-    for x in 0..W {
-        for y in 1..H {
-            let src = y * W + x;
-            let pixel = heat[src];
-            if pixel == 0 {
-                heat[src - W] = 0;
-            } else {
-                let rand = (rng.random() & 3) as usize; // 0..=3
-                // dst = src - rand + 1, then one row up (- W). Guard the ends.
-                let dst = src + 1;
-                if dst >= rand + W {
-                    let target = dst - rand - W;
-                    heat[target] = pixel.saturating_sub((rand & 1) as u8);
-                }
-            }
-        }
-    }
-}
-
-fn blit_flame(heat: &[u8], palette: &[Rgb565; 256], frame: &mut FrameBuffer) {
-    let px = frame.pixels_mut();
-    for i in 0..(W * H) {
-        px[i] = palette[heat[i] as usize];
     }
 }
 
@@ -205,8 +155,9 @@ async fn main(_spawner: Spawner) -> ! {
     let pixels = alloc::vec![Rgb565::BLACK; FrameBuffer::LEN].leak();
     let mut frame = FrameBuffer::new(pixels);
     let heat = alloc::vec![0u8; W * H].leak();
-    let palette = build_palette();
-    let mut rng = Rng::new();
+    // The flame effect is shared with the PC preview (see firmware/flame). Tune
+    // it there, then update FlameParams::default() and reflash.
+    let mut flame = Flame::new(W, H, FlameParams::default(), 0xC0FF_EE11);
 
     // USB Serial/JTAG is the link to the router (it enumerates under vendor 303a
     // as a ttyACM, which netled finds). We drive it directly and leave
@@ -225,8 +176,8 @@ async fn main(_spawner: Spawner) -> ! {
     loop {
         // Draw, or wait, depending on whether we are animating the flame.
         let got = if state == State::Online {
-            step_fire(heat, &mut rng);
-            blit_flame(heat, &palette, &mut frame);
+            flame.step(heat);
+            flame.render(heat, frame.pixels_mut());
             let _ = frame.flush(&mut board.display);
             match select(Timer::after(FRAME_DT), rx.read(&mut byte)).await {
                 Either::First(_) => None,
@@ -245,7 +196,7 @@ async fn main(_spawner: Spawner) -> ! {
                 state = new;
                 if state == State::Online && !was_online {
                     // Start the fire cold so it grows in.
-                    heat.fill(0);
+                    flame.reset(heat);
                 } else if state != State::Online {
                     render_static(&mut frame, &mut board.display, state);
                 }
