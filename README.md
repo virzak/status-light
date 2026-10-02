@@ -2,7 +2,8 @@
 
 Internet status indicator for the GL.iNet Flint 4 (GL-BE14000) router. A monitor
 on the router decides the state and drives a small display board plugged into a
-USB port. Two display boards are supported, both ESP32-S3:
+USB port, and the router's own built-in LCD. Two USB boards are supported, both
+ESP32-S3:
 
 - `firmware/zero-ws2812` - a single WS2812 LED on a Waveshare ESP32-S3-Zero (MicroPython).
 - `firmware/tdisplay-s3` - a 170x320 colour LCD on a LilyGO T-Display-S3 (Rust).
@@ -22,8 +23,11 @@ The table below is the WS2812 board's rendering.
 
 - `PROTOCOL.md` - the serial contract every display board implements.
 - `router/netled` - monitor loop, installed as `/usr/bin/netled`. Finds the board
-  by USB vendor ID `303a`, checks connectivity every 5 s and writes the state.
+  by USB vendor ID `303a`, checks connectivity every 5 s and writes the state to
+  the board and to `/tmp/netled.state`.
 - `router/netled.init` - procd service, installed as `/etc/init.d/netled`.
+- `router/flame-screen/` - the blue flame on the router's built-in LCD while GL's
+  screen UI sleeps (see below).
 - `firmware/zero-ws2812/main.py` - MicroPython for the single-LED board. The WS2812
   is on GPIO21 and takes RGB order, not the usual GRB. Includes `push.sh` and
   `board-push.sh` to update it through the router (see below).
@@ -67,3 +71,33 @@ tar cf - -C router netled netled.init | ssh "$ROUTER" 'cd /tmp && tar xf - && su
 
 Add `/usr/bin/netled` and `/etc/init.d/netled` to `/etc/sysupgrade.conf` so they
 survive firmware upgrades.
+
+## The router's built-in LCD
+
+The Flint 4's screen is a standard Linux framebuffer (`/dev/fb0`, 240x320 RGB565,
+GL's `st7789p3` driver), so `flame-screen` draws the shared flame straight into
+it. GL's screen UI keeps running; when it sleeps (its screen timeout) the flame
+fills the panel, and a touch wakes GL's UI instantly. It reads the state netled
+writes to `/tmp/netled.state`, and blinks red if that file goes stale.
+
+Build the static aarch64 binary in Docker, then install it and the service:
+
+```
+docker run --rm -v "$PWD:/src" -w /src/router/flame-screen \
+  messense/rust-musl-cross:aarch64-musl cargo build --release
+scp -O router/flame-screen/target/aarch64-unknown-linux-musl/release/flame-screen \
+  router/flame-screen/flame-screen.init "$ROUTER:/tmp/"
+ssh "$ROUTER" 'sudo sh -c "cp /tmp/flame-screen /usr/bin/ && chmod 755 /usr/bin/flame-screen
+  tr -d \"\\r\" < /tmp/flame-screen.init > /etc/init.d/flame-screen
+  chmod 755 /etc/init.d/flame-screen
+  /etc/init.d/flame-screen enable && /etc/init.d/flame-screen start"'
+```
+
+To go back to GL's stock screen:
+
+```
+/etc/init.d/flame-screen stop && /etc/init.d/flame-screen disable
+```
+
+These files are deliberately not in `/etc/sysupgrade.conf`, so a firmware upgrade
+also restores the stock screen.

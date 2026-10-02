@@ -1,5 +1,6 @@
 #!/bin/sh
-# Internet status: feeds the ESP32-S3 on USB serial (see /etc/init.d/netled).
+# Internet status: feeds the ESP32-S3 on USB serial (see /etc/init.d/netled)
+# and publishes the state to /tmp/netled.state for the LCD's flame-screen.
 # B = online, A = first failures / reconnecting, R = offline (3+ failed rounds, ~15 s).
 INTERVAL=5
 
@@ -27,22 +28,41 @@ online() {
   return 1
 }
 
+# State for other consumers (the LCD's flame-screen). Rewritten every cycle, so
+# a stale file means netled itself stopped.
+STATE_FILE=/tmp/netled.state
+
+publish() {
+  echo "$1" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+}
+
+tty=""
+fails=0
 while true; do
-  tty=$(find_tty) || { sleep "$INTERVAL"; continue; }
-  logger -t netled "using $tty"
-  exec 3>"$tty" || { sleep "$INTERVAL"; continue; }
-  fails=0
-  while [ -e "$tty" ]; do
-    if online; then
-      fails=0
-      state=B
-    else
-      fails=$((fails + 1))
-      [ "$fails" -ge 3 ] && state=R || state=A
-    fi
-    echo "$state" >&3 2>/dev/null || break
-    sleep "$INTERVAL"
-  done
-  exec 3>&-
-  logger -t netled "lost $tty"
+  if online; then
+    fails=0
+    state=B
+  else
+    fails=$((fails + 1))
+    [ "$fails" -ge 3 ] && state=R || state=A
+  fi
+  publish "$state"
+
+  # Drive a USB status board if one is plugged in; find it again after replug.
+  if [ -n "$tty" ] && [ ! -e "$tty" ]; then
+    exec 3>&-
+    logger -t netled "lost $tty"
+    tty=""
+  fi
+  if [ -z "$tty" ] && t=$(find_tty); then
+    exec 3>"$t" && tty=$t && logger -t netled "using $tty"
+  fi
+  if [ -n "$tty" ]; then
+    echo "$state" >&3 2>/dev/null || {
+      exec 3>&-
+      logger -t netled "write failed on $tty"
+      tty=""
+    }
+  fi
+  sleep "$INTERVAL"
 done
