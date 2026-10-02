@@ -14,7 +14,10 @@ USE_PROCD=1
 start_service() {
   /etc/init.d/gl_screen stop
   # gl_screen ignores SIGTERM; procd SIGKILLs it about 5 s after `stop`
-  # returns, so wait until it is really gone before drawing.
+  # returns, so wait until it is really gone before drawing. On a restart,
+  # service_stopped has just asked procd to launch it, so give that a moment
+  # to appear before checking.
+  sleep 1
   i=0
   while pidof gl_screen >/dev/null && [ "$i" -lt 15 ]; do
     sleep 1
