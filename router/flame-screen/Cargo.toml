@@ -9,6 +9,8 @@ description = "Blue-flame internet status on the GL.iNet Flint 4's built-in LCD"
 # The same effect the T-Display firmware and the PC previewer run.
 flame                  = { path = "../../firmware/flame" }
 embedded-graphics-core = "0.4.0"
+serde                  = { version = "1", features = ["derive"] }
+serde_json             = "1"
 
 [profile.release]
 codegen-units = 1

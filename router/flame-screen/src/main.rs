@@ -30,6 +30,7 @@ use std::time::{Duration, Instant, SystemTime};
 use embedded_graphics_core::pixelcolor::raw::{RawData, RawU16};
 use embedded_graphics_core::pixelcolor::{Rgb565, RgbColor};
 use flame::{Flame, FlameParams};
+use serde::Deserialize;
 
 /// Physical framebuffer (portrait).
 const FB_W: usize = 240;
@@ -43,6 +44,13 @@ const TOUCH: &str = "/dev/input/event0";
 const STATE_FILE: &str = "/tmp/netled.state";
 const STALE: Duration = Duration::from_secs(60);
 const BL_POWER: &str = "/sys/class/backlight/backlight/bl_power";
+const BL_BRIGHTNESS: &str = "/sys/class/backlight/backlight/brightness";
+const BL_MAX: &str = "/sys/class/backlight/backlight/max_brightness";
+/// Shared settings file (settings.schema.json). Only the `lcd` section is used
+/// here; netled handles `boards`.
+const SETTINGS_FILE: &str = "/etc/status-light.json";
+/// Backlight percent while the flame shows, unless set in the settings.
+const DEFAULT_BRIGHTNESS: u8 = 80;
 /// After a touch, give gl_screen this long to redraw before assuming it did
 /// not wake.
 const WAKE_CHECK: Duration = Duration::from_secs(3);
@@ -126,6 +134,92 @@ fn gl_asleep() -> bool {
     fs::read_to_string(BL_POWER).is_ok_and(|s| s.trim() == "1")
 }
 
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Settings {
+    lcd: LcdSettings,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct LcdSettings {
+    brightness: Option<u8>,
+    flame: FlameSettings,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct FlameSettings {
+    cooling: Option<u8>,
+    drift: Option<u8>,
+    flicker: Option<u8>,
+    seed_min: Option<u8>,
+    seed_max: Option<u8>,
+    blue_full: Option<u8>,
+    green_start: Option<u8>,
+    white_start: Option<u8>,
+}
+
+impl LcdSettings {
+    /// This screen's flame: the shared defaults with cooling 1 (it lights about
+    /// the bottom two thirds of the 240-row landscape image), then any
+    /// overrides from the settings file.
+    fn flame_params(&self) -> FlameParams {
+        let f = &self.flame;
+        let d = FlameParams {
+            cooling: 1,
+            ..FlameParams::default()
+        };
+        FlameParams {
+            cooling: f.cooling.unwrap_or(d.cooling),
+            drift: f.drift.unwrap_or(d.drift).min(3),
+            flicker: f.flicker.unwrap_or(d.flicker).max(1),
+            seed_min: f.seed_min.unwrap_or(d.seed_min),
+            seed_max: f.seed_max.unwrap_or(d.seed_max),
+            blue_full: f.blue_full.unwrap_or(d.blue_full).max(1),
+            green_start: f.green_start.unwrap_or(d.green_start),
+            white_start: f.white_start.unwrap_or(d.white_start),
+        }
+    }
+
+    fn brightness(&self) -> u8 {
+        self.brightness.unwrap_or(DEFAULT_BRIGHTNESS).clamp(5, 100)
+    }
+}
+
+fn settings_mtime() -> Option<SystemTime> {
+    fs::metadata(SETTINGS_FILE).and_then(|m| m.modified()).ok()
+}
+
+/// Read the settings file. A missing file means all defaults; an unreadable or
+/// invalid one keeps `previous`, so a half-written edit cannot blank the screen.
+fn load_settings(previous: Option<LcdSettings>) -> LcdSettings {
+    match fs::read_to_string(SETTINGS_FILE) {
+        Err(e) if e.kind() == ErrorKind::NotFound => LcdSettings::default(),
+        Err(e) => {
+            eprintln!("flame-screen: {SETTINGS_FILE}: {e}");
+            previous.unwrap_or_default()
+        }
+        Ok(text) => match serde_json::from_str::<Settings>(&text) {
+            Ok(s) => s.lcd,
+            Err(e) => {
+                eprintln!("flame-screen: {SETTINGS_FILE}: {e}");
+                previous.unwrap_or_default()
+            }
+        },
+    }
+}
+
+/// Set the backlight to `percent` of its maximum (the driver's scale is 0-120).
+fn set_brightness(percent: u8) {
+    let max: u32 = fs::read_to_string(BL_MAX)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(120);
+    let level = (max * u32::from(percent) + 50) / 100;
+    let _ = fs::write(BL_BRIGHTNESS, level.to_string());
+}
+
 fn wake_panel() {
     let _ = fs::write("/sys/class/graphics/fb0/blank", "0");
     let _ = fs::write(BL_POWER, "0");
@@ -154,11 +248,9 @@ fn main() {
 
     // The default cooling suits the 170-row T-Display; on this 240-row
     // landscape image, 1 lights about the bottom two thirds.
-    let params = FlameParams {
-        cooling: 1,
-        ..FlameParams::default()
-    };
-    let mut fl = Flame::new(W, H, params, 0xC0FF_EE11);
+    let mut settings_seen = settings_mtime();
+    let mut settings = load_settings(None);
+    let mut fl = Flame::new(W, H, settings.flame_params(), 0xC0FF_EE11);
     let mut heat = vec![0u8; W * H];
     let mut px = vec![Rgb565::BLACK; W * H];
     let mut bytes = vec![0u8; FB_W * FB_H * 2];
@@ -192,6 +284,7 @@ fn main() {
             };
             if resume {
                 wake_panel();
+                set_brightness(settings.brightness());
                 fl.reset(&mut heat);
                 last_static = None;
                 gl = None;
@@ -207,6 +300,14 @@ fn main() {
         }
 
         if last_check.map_or(true, |c| t - c >= Duration::from_secs(1)) {
+            let mtime = settings_mtime();
+            if mtime != settings_seen {
+                settings_seen = mtime;
+                settings = load_settings(Some(settings));
+                fl.set_params(settings.flame_params());
+                // Only while the flame shows; gl_screen owns it otherwise.
+                set_brightness(settings.brightness());
+            }
             let s = read_state();
             if s != state {
                 if s == State::Online {
