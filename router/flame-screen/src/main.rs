@@ -6,12 +6,12 @@
 //! mounted landscape, so this renders a 320x240 landscape image and rotates
 //! it into the portrait framebuffer.
 //!
-//! Two modes:
-//!
-//! - Flame: gl_screen is stopped and this draws the status. A touch on the
-//!   screen switches to menu mode.
-//! - Menu: gl_screen runs and owns the display. After `IDLE` without touches
-//!   it is stopped again and the flame returns.
+//! GL's own screen UI (`gl_screen`) keeps running. When it goes to sleep (its
+//! screen timeout, `gl_screen.generic.AUTO_LOCK_TIME`) it switches the
+//! backlight off and stops drawing; this then lights the panel and draws the
+//! flame. A touch wakes `gl_screen` instantly, since it is already running, so
+//! this stops drawing and hands the display back. If the screen has not
+//! changed 3 s after a touch, `gl_screen` did not wake and the flame resumes.
 //!
 //! State comes from a one-letter file written by netled (`B` online, `A`
 //! degraded, `R` offline, the same letters as the serial protocol). If the
@@ -42,8 +42,10 @@ const FB: &str = "/dev/fb0";
 const TOUCH: &str = "/dev/input/event0";
 const STATE_FILE: &str = "/tmp/netled.state";
 const STALE: Duration = Duration::from_secs(60);
-/// Back to the flame after this long without a touch in menu mode.
-const IDLE: Duration = Duration::from_secs(60);
+const BL_POWER: &str = "/sys/class/backlight/backlight/bl_power";
+/// After a touch, give gl_screen this long to redraw before assuming it did
+/// not wake.
+const WAKE_CHECK: Duration = Duration::from_secs(3);
 /// fbtft refreshes the panel at about 20 fps, so drawing faster is wasted.
 const FRAME: Duration = Duration::from_millis(50);
 const O_NONBLOCK: i32 = 0o4000;
@@ -117,21 +119,16 @@ fn gl_screen(action: &str) {
     let _ = Command::new("/etc/init.d/gl_screen").arg(action).status();
 }
 
-/// Stop GL's UI and wait until it is really gone: it ignores SIGTERM, so
-/// procd only SIGKILLs it about 5 s after `stop` returns.
-fn stop_gl_screen() {
-    gl_screen("stop");
-    for _ in 0..15 {
-        if !gl_screen_running() {
-            break;
-        }
-        sleep(Duration::from_secs(1));
-    }
+/// gl_screen sleeps by switching the backlight off (bl_power 1). While the
+/// flame shows, this keeps it on, so 1 only appears when gl_screen goes to
+/// sleep again after being woken.
+fn gl_asleep() -> bool {
+    fs::read_to_string(BL_POWER).is_ok_and(|s| s.trim() == "1")
 }
 
 fn wake_panel() {
     let _ = fs::write("/sys/class/graphics/fb0/blank", "0");
-    let _ = fs::write("/sys/class/backlight/backlight/bl_power", "0");
+    let _ = fs::write(BL_POWER, "0");
 }
 
 fn main() {
@@ -140,6 +137,7 @@ fn main() {
     let flip = args.iter().any(|a| a == "--flip");
 
     let fb = OpenOptions::new()
+        .read(true)
         .write(true)
         .open(FB)
         .unwrap_or_else(|e| panic!("open {FB}: {e}"));
@@ -149,10 +147,10 @@ fn main() {
         .open(TOUCH)
         .ok();
 
-    // Also covers a procd respawn, where the init script's start hook does
-    // not run again.
-    stop_gl_screen();
-    wake_panel();
+    // gl_screen owns the display until it goes to sleep.
+    if !gl_screen_running() {
+        gl_screen("start");
+    }
 
     // The default cooling suits the 170-row T-Display; on this 240-row
     // landscape image, 1 lights about the bottom two thirds.
@@ -164,35 +162,47 @@ fn main() {
     let mut heat = vec![0u8; W * H];
     let mut px = vec![Rgb565::BLACK; W * H];
     let mut bytes = vec![0u8; FB_W * FB_H * 2];
+    let mut readback = vec![0u8; FB_W * FB_H * 2];
 
     let start = Instant::now();
     let mut state = State::NoSignal;
     let mut last_check: Option<Instant> = None;
     // For static screens, only push a frame when it changes.
     let mut last_static: Option<(State, bool)> = None;
-    // Some(last touch) while GL's menu owns the display.
-    let mut menu: Option<Instant> = None;
+    // Some((touch time, gl_screen confirmed awake)) while gl_screen owns the
+    // display.
+    let mut gl: Option<(Instant, bool)> = Some((start, true));
 
     loop {
         let t = Instant::now();
         let touch_now = touched(&mut touch);
 
-        if let Some(last) = menu {
-            if touch_now {
-                menu = Some(t);
-            } else if t - last >= IDLE {
-                stop_gl_screen();
+        if let Some((since, confirmed)) = gl {
+            let resume = if gl_asleep() {
+                // gl_screen went back to sleep: the flame takes over.
+                true
+            } else if !confirmed && t - since >= WAKE_CHECK {
+                // If the panel still shows our last frame, gl_screen did not
+                // wake on that touch.
+                let unchanged = fb.read_exact_at(&mut readback, 0).is_ok() && readback == bytes;
+                gl = Some((since, true));
+                unchanged
+            } else {
+                false
+            };
+            if resume {
                 wake_panel();
                 fl.reset(&mut heat);
                 last_static = None;
-                menu = None;
+                gl = None;
+            } else {
+                sleep(FRAME);
+                continue;
             }
-            sleep(FRAME);
-            continue;
         }
         if touch_now {
-            gl_screen("start");
-            menu = Some(t);
+            // gl_screen wakes on this touch by itself; stop drawing over it.
+            gl = Some((t, false));
             continue;
         }
 

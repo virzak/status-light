@@ -26,8 +26,8 @@ The table below is the WS2812 board's rendering.
   by USB vendor ID `303a`, checks connectivity every 5 s and writes the state to
   the board and to `/tmp/netled.state`.
 - `router/netled.init` - procd service, installed as `/etc/init.d/netled`.
-- `router/flame-screen/` - the blue flame as the idle screen of the router's
-  built-in LCD, with GL's screen UI on touch (see below).
+- `router/flame-screen/` - the blue flame on the router's built-in LCD while GL's
+  screen UI sleeps (see below).
 - `firmware/zero-ws2812/main.py` - MicroPython for the single-LED board. The WS2812
   is on GPIO21 and takes RGB order, not the usual GRB. Includes `push.sh` and
   `board-push.sh` to update it through the router (see below).
@@ -76,9 +76,9 @@ survive firmware upgrades.
 
 The Flint 4's screen is a standard Linux framebuffer (`/dev/fb0`, 240x320 RGB565,
 GL's `st7789p3` driver), so `flame-screen` draws the shared flame straight into
-it. The flame is the idle screen; touching the panel starts GL's screen UI, and
-the flame returns after 60 s without touches. It reads the state netled writes
-to `/tmp/netled.state`, and blinks red if that file goes stale.
+it. GL's screen UI keeps running; when it sleeps (its screen timeout) the flame
+fills the panel, and a touch wakes GL's UI instantly. It reads the state netled
+writes to `/tmp/netled.state`, and blinks red if that file goes stale.
 
 Build the static aarch64 binary in Docker, then install it and the service:
 
