@@ -13,6 +13,13 @@ cleanup() {
 trap cleanup INT TERM
 
 /etc/init.d/gl_screen stop
+# gl_screen ignores SIGTERM; procd SIGKILLs it after about 5 s and `stop`
+# returns before that, so wait until it is really gone.
+i=0
+while pidof gl_screen >/dev/null && [ "$i" -lt 15 ]; do
+  sleep 1
+  i=$((i + 1))
+done
 "$BIN" "$@" &
 pid=$!
 wait "$pid"
