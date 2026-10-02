@@ -69,7 +69,13 @@ fn main() {
     let _ = fs::write("/sys/class/graphics/fb0/blank", "0");
     let _ = fs::write("/sys/class/backlight/backlight/bl_power", "0");
 
-    let mut fl = Flame::new(W, H, FlameParams::default(), 0xC0FF_EE11);
+    // The default cooling is tuned for the 170-row T-Display; on this 320-row
+    // screen 1 gives the same bottom-half flame.
+    let params = FlameParams {
+        cooling: 1,
+        ..FlameParams::default()
+    };
+    let mut fl = Flame::new(W, H, params, 0xC0FF_EE11);
     let mut heat = vec![0u8; W * H];
     let mut px = vec![Rgb565::BLACK; W * H];
     let mut bytes = vec![0u8; W * H * 2];

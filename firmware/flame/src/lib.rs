@@ -36,7 +36,11 @@ pub struct FlameParams {
 impl Default for FlameParams {
     fn default() -> Self {
         Self {
-            cooling: 0,
+            // Heat runs 0-255 (classic Doom fire used 0-36), so it needs extra
+            // cooling or the fire fills the screen. 2 lights about the bottom
+            // 56% of a 170-row screen; taller screens want less (see
+            // flame-screen, which uses 1 on the router's 320-row LCD).
+            cooling: 2,
             drift: 3,
             seed_min: 170,
             seed_max: 255,
