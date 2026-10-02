@@ -102,10 +102,13 @@ return view.extend({
 		if (!L.isObject(settings))
 			settings = {};
 
+		// Loaded boards get explicit names: JSONMap's add() names a new section
+		// "board<count>", which can collide with an auto-named loaded one and
+		// overwrite it (fixed in later LuCI).
 		const data = {
 			lcd: flatten(settings.lcd),
 			board: Object.entries(L.isObject(settings.boards) ? settings.boards : {})
-				.map(([ serial, b ]) => Object.assign({ serial }, flatten(b)))
+				.map(([ serial, b ], i) => Object.assign({ '.name': `b${i}`, serial }, flatten(b)))
 		};
 
 		const m = new form.JSONMap(data, _('Status Light'),
