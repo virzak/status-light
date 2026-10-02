@@ -1,0 +1,13 @@
+{
+	"admin/services/status-light": {
+		"title": "Status Light",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "status-light"
+		},
+		"depends": {
+			"acl": [ "luci-app-status-light" ]
+		}
+	}
+}
