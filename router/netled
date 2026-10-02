@@ -1,17 +1,62 @@
 #!/bin/sh
-# Internet status: feeds the ESP32-S3 on USB serial (see /etc/init.d/netled)
-# and publishes the state to /tmp/netled.state for the LCD's flame-screen.
+# Internet status: feeds every ESP32-S3 board on USB serial (see
+# /etc/init.d/netled) and publishes the state to /tmp/netled.state for the
+# LCD's flame-screen.
 # B = online, A = first failures / reconnecting, R = offline (3+ failed rounds, ~15 s).
 INTERVAL=5
 
-find_tty() {
+# Every Espressif (vendor 303a) board's serial port, one per line.
+find_ttys() {
   for d in /sys/bus/usb/devices/*; do
     [ "$(cat "$d/idVendor" 2>/dev/null)" = "303a" ] || continue
     for t in "$d"/*/tty/ttyACM*; do
-      [ -e "$t" ] && { echo "/dev/${t##*/}"; return 0; }
+      [ -e "$t" ] && echo "/dev/${t##*/}"
     done
   done
-  return 1
+}
+
+# Each board keeps its own open file descriptor, 3-6, so up to four boards.
+# Opening and closing an ESP32-S3's USB serial port toggles DTR/RTS, which can
+# reset the chip, so a board's port stays open for as long as it is present.
+# tty_N is the port open on fd N.
+FDS="3 4 5 6"
+
+get_tty() { eval "echo \"\${tty_$1}\""; }
+set_tty() { eval "tty_$1=\$2"; }
+
+sync_boards() {
+  for fd in $FDS; do
+    t=$(get_tty "$fd")
+    if [ -n "$t" ] && [ ! -e "$t" ]; then
+      eval "exec $fd>&-"
+      set_tty "$fd" ""
+      logger -t netled "lost $t"
+    fi
+  done
+  for t in $(find_ttys); do
+    known=""
+    for fd in $FDS; do
+      [ "$(get_tty "$fd")" = "$t" ] && known=1
+    done
+    [ -n "$known" ] && continue
+    for fd in $FDS; do
+      [ -z "$(get_tty "$fd")" ] || continue
+      eval "exec $fd>\"\$t\"" && set_tty "$fd" "$t" && logger -t netled "using $t"
+      break
+    done
+  done
+}
+
+send_boards() {
+  for fd in $FDS; do
+    t=$(get_tty "$fd")
+    [ -n "$t" ] || continue
+    if ! eval "echo \"\$1\" >&$fd" 2>/dev/null; then
+      eval "exec $fd>&-"
+      set_tty "$fd" ""
+      logger -t netled "write failed on $t"
+    fi
+  done
 }
 
 # Internet check. ICMP is unreliable on some ISP paths (Bell's PPPoE silently
@@ -36,7 +81,6 @@ publish() {
   echo "$1" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 }
 
-tty=""
 fails=0
 while true; do
   if online; then
@@ -48,21 +92,8 @@ while true; do
   fi
   publish "$state"
 
-  # Drive a USB status board if one is plugged in; find it again after replug.
-  if [ -n "$tty" ] && [ ! -e "$tty" ]; then
-    exec 3>&-
-    logger -t netled "lost $tty"
-    tty=""
-  fi
-  if [ -z "$tty" ] && t=$(find_tty); then
-    exec 3>"$t" && tty=$t && logger -t netled "using $tty"
-  fi
-  if [ -n "$tty" ]; then
-    echo "$state" >&3 2>/dev/null || {
-      exec 3>&-
-      logger -t netled "write failed on $tty"
-      tty=""
-    }
-  fi
+  # Drive every USB status board plugged in; pick up new ones, drop removed.
+  sync_boards
+  send_boards "$state"
   sleep "$INTERVAL"
 done
