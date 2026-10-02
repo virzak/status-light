@@ -5,25 +5,17 @@
 #   Use:    /etc/init.d/flame-screen enable && /etc/init.d/flame-screen start
 #   Revert: /etc/init.d/flame-screen stop && /etc/init.d/flame-screen disable
 #
-# gl_screen stays enabled; this service stops it on start and restarts it on
-# stop, so disabling this one is all it takes to go back to the stock screen.
+# The flame is the idle screen; touching the panel brings up GL's screen UI,
+# and the flame returns after a minute without touches. gl_screen stays
+# enabled; this service restarts it on stop, so disabling this one is all it
+# takes to go back to the stock screen.
 
 START=99
 USE_PROCD=1
 
 start_service() {
-  /etc/init.d/gl_screen stop
-  # gl_screen ignores SIGTERM; procd SIGKILLs it about 5 s after `stop`
-  # returns, so wait until it is really gone before drawing. On a restart,
-  # service_stopped has just asked procd to launch it, so give that a moment
-  # to appear before checking.
-  sleep 1
-  i=0
-  while pidof gl_screen >/dev/null && [ "$i" -lt 15 ]; do
-    sleep 1
-    i=$((i + 1))
-  done
-
+  # flame-screen stops gl_screen itself (and waits for procd's SIGKILL, since
+  # gl_screen ignores SIGTERM), so a procd respawn is covered too.
   procd_open_instance
   procd_set_param command /usr/bin/flame-screen
   procd_set_param respawn
