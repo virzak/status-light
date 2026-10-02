@@ -40,6 +40,24 @@ The command set is the contract; how a board shows each state is up to its firmw
 - `firmware/tdisplay-s3` (170x320 LCD): colour plus on-screen text, and room to show
   more than the six states below allow.
 
+## Settings
+
+Settings live on the router in `/etc/status-light.json` (see `settings.schema.json`),
+keyed by each board's USB serial number. netled sends a board its settings as
+`S` lines when the board connects and whenever the file changes, always starting
+with `S reset`:
+
+```
+S reset              restore the built-in defaults; the values below follow
+S brightness 40      percent, 0-100
+S cooling 2          flame tuning: cooling, drift, flicker, seed_min, seed_max,
+S drift 3              blue_full, green_start, white_start (see FlameParams)
+```
+
+A board applies the keys it supports and ignores the rest, so a board without
+settings support ignores every `S` line under the "unknown lines are ignored" rule.
+`S` lines also count as traffic for the watchdog.
+
 ## Planned extension
 
 A `T<text>` command (text to display) is reserved for the richer displays (LCD,
