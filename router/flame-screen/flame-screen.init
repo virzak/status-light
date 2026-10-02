@@ -1,0 +1,32 @@
+#!/bin/sh /etc/rc.common
+# Blue-flame internet status on the router's built-in LCD instead of GL's
+# screen UI. Reads the state netled publishes to /tmp/netled.state.
+#
+#   Use:    /etc/init.d/flame-screen enable && /etc/init.d/flame-screen start
+#   Revert: /etc/init.d/flame-screen stop && /etc/init.d/flame-screen disable
+#
+# gl_screen stays enabled; this service stops it on start and restarts it on
+# stop, so disabling this one is all it takes to go back to the stock screen.
+
+START=99
+USE_PROCD=1
+
+start_service() {
+  /etc/init.d/gl_screen stop
+  # gl_screen ignores SIGTERM; procd SIGKILLs it about 5 s after `stop`
+  # returns, so wait until it is really gone before drawing.
+  i=0
+  while pidof gl_screen >/dev/null && [ "$i" -lt 15 ]; do
+    sleep 1
+    i=$((i + 1))
+  done
+
+  procd_open_instance
+  procd_set_param command /usr/bin/flame-screen
+  procd_set_param respawn
+  procd_close_instance
+}
+
+service_stopped() {
+  /etc/init.d/gl_screen start
+}
