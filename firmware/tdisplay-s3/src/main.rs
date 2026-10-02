@@ -4,6 +4,8 @@
 //! over USB serial and shows it on the ST7789 LCD. When online it renders an
 //! animated blue flame; the other states are static colour + label screens.
 //! The router side (`router/netled`) is shared with the WS2812 board, unchanged.
+//! `S` lines from netled (PROTOCOL.md) set the backlight brightness and the
+//! flame parameters live, from the router's /etc/status-light.json.
 //!
 //! Build/flash notes are in README.md. Builds clean against esp-hal 1.2.2 on the
 //! `esp` toolchain.
@@ -112,25 +114,103 @@ fn render_static(frame: &mut FrameBuffer, display: &mut Lcd, state: State) {
     let _ = frame.flush(display);
 }
 
-/// Feed one received byte into the parser. Mirrors the WS2812 board: remember the
-/// last command letter, apply it on newline. Returns the new state if it changed.
-fn feed(
-    byte: u8,
-    pending: &mut Option<State>,
-    state: State,
-    last_cmd: &mut Instant,
-) -> Option<State> {
-    if byte == b'\r' || byte == b'\n' {
-        if let Some(new) = pending.take() {
-            *last_cmd = Instant::now();
-            if new != state {
-                return Some(new);
-            }
+/// Accumulates received bytes into protocol lines (PROTOCOL.md). A line is
+/// handed out on newline; a line longer than the buffer is dropped whole, so a
+/// garbled burst cannot turn into a command.
+struct LineBuf {
+    buf: [u8; 48],
+    len: usize,
+    overflow: bool,
+}
+
+impl LineBuf {
+    const fn new() -> Self {
+        Self {
+            buf: [0; 48],
+            len: 0,
+            overflow: false,
         }
-    } else if let Some(s) = State::from_cmd(byte) {
-        *pending = Some(s);
     }
-    None
+
+    fn push(&mut self, b: u8) -> Option<&[u8]> {
+        if b == b'\r' || b == b'\n' {
+            let done = !self.overflow && self.len > 0;
+            let len = self.len;
+            self.len = 0;
+            self.overflow = false;
+            return done.then(|| &self.buf[..len]);
+        }
+        if self.len < self.buf.len() {
+            self.buf[self.len] = b;
+            self.len += 1;
+        } else {
+            self.overflow = true;
+        }
+        None
+    }
+}
+
+/// One protocol line: a single state letter, or `S <key> [value]`.
+enum Line<'a> {
+    State(State),
+    Setting(&'a str, &'a str),
+    Unknown,
+}
+
+fn parse_line(raw: &[u8]) -> Line<'_> {
+    let Ok(text) = core::str::from_utf8(raw) else {
+        return Line::Unknown;
+    };
+    let text = text.trim();
+    let bytes = text.as_bytes();
+    if bytes.len() == 1 {
+        return State::from_cmd(bytes[0]).map_or(Line::Unknown, Line::State);
+    }
+    match text.split_once(' ') {
+        Some((s, rest)) if s.eq_ignore_ascii_case("S") => {
+            let (key, value) = rest.trim().split_once(' ').unwrap_or((rest.trim(), ""));
+            Line::Setting(key, value.trim())
+        }
+        _ => Line::Unknown,
+    }
+}
+
+/// Apply one `S` line. Unknown keys and bad values are ignored, per the
+/// protocol. Returns true if the flame parameters changed.
+fn apply_setting(key: &str, value: &str, params: &mut FlameParams, board: &mut Board) -> bool {
+    let is = |name: &str| key.eq_ignore_ascii_case(name);
+    if is("reset") {
+        *params = FlameParams::default();
+        board.backlight.set_percent(100);
+        return true;
+    }
+    let Ok(v) = value.parse::<u8>() else {
+        return false;
+    };
+    if is("brightness") {
+        board.backlight.set_percent(v.min(100));
+        return false;
+    }
+    if is("cooling") {
+        params.cooling = v;
+    } else if is("drift") {
+        params.drift = v.min(3);
+    } else if is("flicker") {
+        params.flicker = v.max(1);
+    } else if is("seed_min") {
+        params.seed_min = v;
+    } else if is("seed_max") {
+        params.seed_max = v;
+    } else if is("blue_full") {
+        params.blue_full = v.max(1);
+    } else if is("green_start") {
+        params.green_start = v;
+    } else if is("white_start") {
+        params.white_start = v;
+    } else {
+        return false;
+    }
+    true
 }
 
 #[esp_rtos::main]
@@ -155,8 +235,8 @@ async fn main(_spawner: Spawner) -> ! {
     let pixels = alloc::vec![Rgb565::BLACK; FrameBuffer::LEN].leak();
     let mut frame = FrameBuffer::new(pixels);
     let heat = alloc::vec![0u8; W * H].leak();
-    // The flame effect is shared with the PC preview (see firmware/flame). Tune
-    // it there, then update FlameParams::default() and reflash.
+    // The flame effect is shared with the PC preview (see firmware/flame). The
+    // defaults can be overridden live from the router's settings via S lines.
     let mut flame = Flame::new(W, H, FlameParams::default(), 0xC0FF_EE11);
 
     // USB Serial/JTAG is the link to the router (it enumerates under vendor 303a
@@ -169,7 +249,8 @@ async fn main(_spawner: Spawner) -> ! {
     let mut state = State::Boot;
     render_static(&mut frame, &mut board.display, state);
 
-    let mut pending: Option<State> = None;
+    let mut line = LineBuf::new();
+    let mut params = FlameParams::default();
     let mut last_cmd = Instant::now();
     let mut byte = [0u8; 1];
 
@@ -191,14 +272,28 @@ async fn main(_spawner: Spawner) -> ! {
         };
 
         if let Some(Ok(1)) = got {
-            if let Some(new) = feed(byte[0], &mut pending, state, &mut last_cmd) {
-                let was_online = state == State::Online;
-                state = new;
-                if state == State::Online && !was_online {
-                    // Start the fire cold so it grows in.
-                    flame.reset(heat);
-                } else if state != State::Online {
-                    render_static(&mut frame, &mut board.display, state);
+            if let Some(raw) = line.push(byte[0]) {
+                match parse_line(raw) {
+                    Line::State(new) => {
+                        last_cmd = Instant::now();
+                        if new != state {
+                            let was_online = state == State::Online;
+                            state = new;
+                            if state == State::Online && !was_online {
+                                // Start the fire cold so it grows in.
+                                flame.reset(heat);
+                            } else if state != State::Online {
+                                render_static(&mut frame, &mut board.display, state);
+                            }
+                        }
+                    }
+                    Line::Setting(key, value) => {
+                        last_cmd = Instant::now();
+                        if apply_setting(key, value, &mut params, &mut board) {
+                            flame.set_params(params);
+                        }
+                    }
+                    Line::Unknown => {}
                 }
             }
         }
