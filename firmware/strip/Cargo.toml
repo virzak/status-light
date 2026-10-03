@@ -1,0 +1,8 @@
+[package]
+name        = "strip"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+description = "Shared no_std LED-strip patterns for the internet-status boards (board + PC preview)"
+
+[dependencies]
