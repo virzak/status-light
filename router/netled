@@ -25,7 +25,13 @@ get_tty() { eval "echo \"\${tty_$1}\""; }
 set_tty() { eval "tty_$1=\$2"; }
 get_ser() { eval "echo \"\${ser_$1}\""; }
 set_ser() { eval "ser_$1=\$2"; }
-write_fd() { eval "echo \"\$2\" >&$1" 2>/dev/null; }
+
+# Write one line to the board on fd $1. A board whose USB link wedges (seen
+# when another device on the same hub keeps failing to enumerate) never takes
+# the data, and a plain write would then block netled forever and freeze every
+# board and the LCD. So write from a child under a time limit: exit status 0
+# is written, 124 or more is timed out, anything else is a failed write.
+write_fd() { timeout 2 sh -c 'echo "$2" >&$1' _ "$1" "$2" 2>/dev/null; }
 
 # Settings (settings.schema.json), keyed by board USB serial number. Each
 # board gets "S reset" and then its own values, numeric ones only, so a typo in
@@ -41,6 +47,7 @@ settings_for() {
   echo "S reset"
   [ -n "$ser" ] && [ -f "$SETTINGS_FILE" ] || return 0
   setting brightness brightness
+  setting strip_leds strip.leds
   for k in $WISP_KEYS; do setting "$k" "wisps.$k"; done
   for k in $FLAME_KEYS; do setting "$k" "flame.$k"; done
 }
@@ -100,13 +107,26 @@ check_settings() {
   done
 }
 
+# A board that stops taking data is left open rather than closed: closing a
+# tty with output stuck in it can itself block for half a minute. It is
+# retried every cycle and picks up again if its link recovers.
 send_boards() {
   for fd in $FDS; do
     t=$(get_tty "$fd")
     [ -n "$t" ] || continue
-    if ! eval "echo \"\$1\" >&$fd" 2>/dev/null; then
+    write_fd "$fd" "$1"
+    rc=$?
+    stuck=$(eval "echo \"\${stuck_$fd}\"")
+    if [ "$rc" -eq 0 ]; then
+      [ -n "$stuck" ] && logger -t netled "$t taking data again"
+      eval "stuck_$fd="
+    elif [ "$rc" -ge 124 ]; then
+      [ -z "$stuck" ] && logger -t netled "$t not taking data; retrying each cycle"
+      eval "stuck_$fd=1"
+    else
       eval "exec $fd>&-"
       set_tty "$fd" ""
+      eval "stuck_$fd="
       logger -t netled "write failed on $t"
     fi
   done
