@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"noEmit": true,
+		"target": "es2020",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"lib": ["es2020", "dom", "dom.iterable"],
+		"types": [],
+		"paths": { "luci/*": ["../node_modules/luci-types/types/openwrt-25.12/*"] }
+	},
+	"files": [
+		"status-light.ts",
+		"../node_modules/luci-types/types/openwrt-25.12/globals.d.ts",
+		"../node_modules/luci-types/types/openwrt-25.12/namespace.d.ts"
+	]
+}

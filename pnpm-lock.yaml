@@ -1,0 +1,38 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      luci-types:
+        specifier: github:virzak/luci-types#79deb13202fac41ad6503e051d117de0855b325b
+        version: https://codeload.github.com/virzak/luci-types/tar.gz/79deb13202fac41ad6503e051d117de0855b325b(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+packages:
+
+  luci-types@https://codeload.github.com/virzak/luci-types/tar.gz/79deb13202fac41ad6503e051d117de0855b325b:
+    resolution: {gitHosted: true, integrity: sha512-x8qdhK+SUMC1BAqNP/QYlLHk7OGNjYxKU6r4R1jIeuAL4hXU1XghB8K4bK62PnRVAcpS0ahx8ety0CVbIrv9fw==, tarball: https://codeload.github.com/virzak/luci-types/tar.gz/79deb13202fac41ad6503e051d117de0855b325b}
+    version: 0.1.0
+    hasBin: true
+    peerDependencies:
+      typescript: '>=5.5'
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+snapshots:
+
+  luci-types@https://codeload.github.com/virzak/luci-types/tar.gz/79deb13202fac41ad6503e051d117de0855b325b(typescript@5.9.3):
+    dependencies:
+      typescript: 5.9.3
+
+  typescript@5.9.3: {}
