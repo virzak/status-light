@@ -5,12 +5,12 @@
 # B = online, A = first failures / reconnecting, R = offline (3+ failed rounds, ~15 s).
 INTERVAL=5
 
-# Every Espressif (vendor 303a) board's serial port, one per line.
+# Every Espressif (vendor 303a) board, one per line: "<tty> <usb serial>".
 find_ttys() {
   for d in /sys/bus/usb/devices/*; do
     [ "$(cat "$d/idVendor" 2>/dev/null)" = "303a" ] || continue
     for t in "$d"/*/tty/ttyACM*; do
-      [ -e "$t" ] && echo "/dev/${t##*/}"
+      [ -e "$t" ] && echo "/dev/${t##*/} $(cat "$d/serial" 2>/dev/null)"
     done
   done
 }
@@ -18,11 +18,38 @@ find_ttys() {
 # Each board keeps its own open file descriptor, 3-6, so up to four boards.
 # Opening and closing an ESP32-S3's USB serial port toggles DTR/RTS, which can
 # reset the chip, so a board's port stays open for as long as it is present.
-# tty_N is the port open on fd N.
+# tty_N is the port open on fd N and ser_N that board's USB serial number.
 FDS="3 4 5 6"
 
 get_tty() { eval "echo \"\${tty_$1}\""; }
 set_tty() { eval "tty_$1=\$2"; }
+get_ser() { eval "echo \"\${ser_$1}\""; }
+set_ser() { eval "ser_$1=\$2"; }
+write_fd() { eval "echo \"\$2\" >&$1" 2>/dev/null; }
+
+# Settings (settings.schema.json), keyed by board USB serial number. Each
+# board gets "S reset" and then its own values, numeric ones only, so a typo in
+# the file cannot inject a command.
+SETTINGS_FILE=/etc/status-light.json
+FLAME_KEYS="cooling drift flicker seed_min seed_max blue_full green_start white_start"
+
+settings_for() {
+  ser=$1
+  echo "S reset"
+  [ -n "$ser" ] && [ -f "$SETTINGS_FILE" ] || return 0
+  for k in brightness $FLAME_KEYS; do
+    case "$k" in brightness) path=$k ;; *) path=flame.$k ;; esac
+    v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$path" 2>/dev/null)
+    case "$v" in ''|*[!0-9]*) ;; *) echo "S $k $v" ;; esac
+  done
+}
+
+send_settings() {
+  fd=$1
+  settings_for "$(get_ser "$fd")" | while read -r line; do
+    write_fd "$fd" "$line" || return 1
+  done
+}
 
 sync_boards() {
   for fd in $FDS; do
@@ -30,10 +57,12 @@ sync_boards() {
     if [ -n "$t" ] && [ ! -e "$t" ]; then
       eval "exec $fd>&-"
       set_tty "$fd" ""
+      set_ser "$fd" ""
       logger -t netled "lost $t"
     fi
   done
-  for t in $(find_ttys); do
+  find_ttys > /tmp/netled.ttys
+  while read -r t ser; do
     known=""
     for fd in $FDS; do
       [ "$(get_tty "$fd")" = "$t" ] && known=1
@@ -41,9 +70,26 @@ sync_boards() {
     [ -n "$known" ] && continue
     for fd in $FDS; do
       [ -z "$(get_tty "$fd")" ] || continue
-      eval "exec $fd>\"\$t\"" && set_tty "$fd" "$t" && logger -t netled "using $t"
+      if eval "exec $fd>\"\$t\""; then
+        set_tty "$fd" "$t"
+        set_ser "$fd" "$ser"
+        logger -t netled "using $t (serial $ser)"
+        send_settings "$fd"
+      fi
       break
     done
+  done < /tmp/netled.ttys
+}
+
+# Re-send every board its settings when the settings file changes. Seeded at
+# startup: boards opened by sync_boards already got the current settings.
+settings_seen=$(date -r "$SETTINGS_FILE" +%s 2>/dev/null)
+check_settings() {
+  m=$(date -r "$SETTINGS_FILE" +%s 2>/dev/null)
+  [ "$m" = "$settings_seen" ] && return
+  settings_seen=$m
+  for fd in $FDS; do
+    [ -n "$(get_tty "$fd")" ] && send_settings "$fd"
   done
 }
 
@@ -94,6 +140,7 @@ while true; do
 
   # Drive every USB status board plugged in; pick up new ones, drop removed.
   sync_boards
+  check_settings
   send_boards "$state"
   sleep "$INTERVAL"
 done

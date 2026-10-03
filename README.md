@@ -101,3 +101,49 @@ To go back to GL's stock screen:
 
 These files are deliberately not in `/etc/sysupgrade.conf`, so a firmware upgrade
 also restores the stock screen.
+
+## Settings
+
+Settings live on the router in `/etc/status-light.json`, described by
+`settings.schema.json`: the LCD's brightness and flame, and per-board brightness
+and flame keyed by each board's USB serial number. Every key is optional. With
+`"$schema"` set (as in `router/status-light.json`), VS Code validates the file and
+documents each key on hover.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/virzak/status-light/master/settings.schema.json",
+  "lcd": { "brightness": 60, "flame": { "cooling": 1 } },
+  "boards": {
+    "A0:F2:62:E1:35:58": { "name": "tdisplay", "brightness": 40, "flame": { "cooling": 3 } }
+  }
+}
+```
+
+flame-screen re-reads the file when it changes. netled sends each board its
+values as `S` lines (see `PROTOCOL.md`) when the board connects and whenever the
+file changes; the T-Display applies brightness and flame tuning live, and the
+WS2812 board ignores them for now. Install the default file once and keep it
+across firmware upgrades:
+
+```
+scp -O router/status-light.json "$ROUTER:/tmp/" && ssh "$ROUTER" 'sudo sh -c "
+  [ -f /etc/status-light.json ] || cp /tmp/status-light.json /etc/status-light.json
+  grep -qx /etc/status-light.json /etc/sysupgrade.conf || echo /etc/status-light.json >> /etc/sysupgrade.conf"'
+```
+
+### Web UI
+
+`luci/` adds Services > Status Light to the router's LuCI (port 8080 on the
+Flint 4): a form for the same file, with boards currently plugged in offered by
+serial number. Copy the files (only files, so existing directories keep their
+owner and permissions) onto the router and reload rpcd:
+
+```
+(cd luci && tar cf - $(find . -type f)) | ssh "$ROUTER" 'sudo sh -c "tar xof - -C /
+  rm -f /tmp/luci-indexcache*; rm -rf /tmp/luci-modulecache
+  /etc/init.d/rpcd reload"'
+```
+
+The page can only read and write `/etc/status-light.json` (plus read-only USB
+device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.

@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/virzak/status-light/master/settings.schema.json",
+  "title": "status-light settings",
+  "description": "Settings for the router's LCD and the USB status boards, stored on the router as /etc/status-light.json. Every key is optional; a missing key uses the built-in default.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "lcd": {
+      "description": "The router's built-in LCD (flame-screen).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brightness": {
+          "description": "Backlight while the flame shows, in percent. GL's screen UI uses its own brightness when awake.",
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 100,
+          "default": 80
+        },
+        "flame": {
+          "$ref": "#/definitions/flame"
+        }
+      }
+    },
+    "boards": {
+      "description": "Per-board settings, keyed by the board's USB serial number as shown in /sys/bus/usb/devices/*/serial (e.g. \"A0:F2:62:E1:35:58\"). netled sends them to the board when it connects and whenever this file changes.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "A label for people; the board ignores it.",
+            "type": "string"
+          },
+          "brightness": {
+            "description": "Brightness in percent. The T-Display applies it to its backlight; the WS2812 board ignores it for now.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 100
+          },
+          "flame": {
+            "$ref": "#/definitions/flame"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "flame": {
+      "description": "Flame tuning (FlameParams in firmware/flame). Omitted keys keep the defaults.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cooling": {
+          "description": "Heat lost per row as it rises. Higher means shorter flames.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "drift": {
+          "description": "Sideways drift while rising, 0 (straight up) to 3 (lively).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "flicker": {
+          "description": "One in this many base cells uses seed_min, the rest seed_max.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "seed_min": {
+          "description": "Base heat of a cool (flickering) cell.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "seed_max": {
+          "description": "Base heat of a hot cell.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "blue_full": {
+          "description": "Heat at which blue reaches full brightness.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "green_start": {
+          "description": "Heat at which green joins (cyan as it gets hotter).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 254
+        },
+        "white_start": {
+          "description": "Heat at which red joins (the white tip).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 254
+        }
+      }
+    }
+  }
+}
