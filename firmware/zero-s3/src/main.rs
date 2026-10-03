@@ -2,9 +2,10 @@
 //!
 //! Reads the status protocol (see ../../PROTOCOL.md) from the router over USB
 //! serial and shows it on two WS2812 chains: the board's own LED (GPIO21) and an
-//! optional addressable strip (GPIO2). Online, the LED breathes blue and the
-//! strip shimmers with the shared blue flame; the other states are solid
-//! colours. `S` lines set the brightness, the strip length and the flame.
+//! optional addressable strip (GPIO2). Online, the LED breathes blue and a soft
+//! blue glow sweeps back and forth along the strip; the other states are solid
+//! colours. `S` lines set the brightness, the strip's length, the sweep's speed
+//! and width, and a counting pattern for finding out how many LEDs a strip has.
 //!
 //! Build and flash notes are in README.md.
 
@@ -23,26 +24,19 @@ use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
 use esp_hal_smartled::{RmtSmartLeds, buffer_size, color_order};
-use flame::{Flame, FlameParams};
 use smart_leds_trait::{RGB8, SmartLedsWriteAsync};
-use status_protocol::{Command, Line, LineBuf, apply_flame_setting, parse_line};
+use status_protocol::{Command, Line, LineBuf, parse_line};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-/// The longest strip the firmware drives; `S strip_leds` picks how many light.
-const STRIP_MAX: usize = 150;
-const STRIP_DEFAULT: usize = 60;
-
-/// The strip shows one row of a small flame field: each LED is a column, and
-/// the row is where the default heat sits mid-palette (about 108 +/- 28), so it
-/// shimmers instead of sitting at full blue. Measured with the flame crate.
-const FLAME_H: usize = 16;
-const FLAME_ROW: usize = 4;
-const STRIP_COOLING: u8 = 12;
+/// The longest strip the firmware drives (the RMT buffer is sized for it). How
+/// many LEDs a strip actually has is a setting, `S strip_leds`: a WS2812 strip
+/// cannot report its length, so the user counts it with `S strip_identify 1`.
+const STRIP_MAX: usize = 300;
 
 /// Full-scale channel levels at 100% brightness. The onboard LED is a single
-/// status light; the strip is capped so 60 LEDs stay within what the router's
-/// USB port can supply even at a white flame tip.
+/// status light; the strip is capped so a full strip of solid colour stays
+/// within what a USB port can supply.
 const LED_LEVEL: u32 = 40;
 const STRIP_LEVEL: u32 = 32;
 
@@ -51,6 +45,10 @@ const WATCHDOG: Duration = Duration::from_secs(60);
 const FRAME_DT: Duration = Duration::from_millis(33);
 const BREATHE_MS: u64 = 4000;
 const BLINK_MS: u64 = 500;
+
+/// Share of full brightness the strip keeps away from the sweep, so it reads as
+/// one lit strip with a moving highlight rather than a lone moving dot.
+const SWEEP_BASE: f32 = 0.08;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -95,42 +93,55 @@ impl State {
     }
 }
 
-/// Live settings from `S` lines.
+/// Live settings from `S` lines (keys in PROTOCOL.md, ranges in
+/// settings.schema.json).
 struct Settings {
+    /// Percent, 0-100, for both the onboard LED and the strip.
     brightness: u32,
+    /// LEDs on the strip, 0 to STRIP_MAX.
     strip_leds: usize,
-    flame: FlameParams,
+    /// Sweep speed, 1 (slow) to 100 (fast).
+    speed: u32,
+    /// Half-width of the sweep's glow, in LEDs.
+    width: u32,
+    /// Show the counting pattern on the strip instead of the status.
+    identify: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             brightness: 100,
-            strip_leds: STRIP_DEFAULT,
-            flame: FlameParams { cooling: STRIP_COOLING, ..FlameParams::default() },
+            strip_leds: 60,
+            speed: 30,
+            width: 8,
+            identify: false,
         }
     }
 }
 
 impl Settings {
     /// Apply one `S` line. Unknown keys and bad values are ignored, per the
-    /// protocol. Returns true if the flame parameters changed.
-    fn apply(&mut self, key: &str, value: &str) -> bool {
-        if key.eq_ignore_ascii_case("reset") {
+    /// protocol.
+    fn apply(&mut self, key: &str, value: &str) {
+        let is = |name: &str| key.eq_ignore_ascii_case(name);
+        if is("reset") {
             *self = Self::default();
-            return true;
+            return;
         }
         let Ok(v) = value.parse::<u16>() else {
-            return false;
+            return;
         };
-        if key.eq_ignore_ascii_case("brightness") {
+        if is("brightness") {
             self.brightness = u32::from(v.min(100));
-            false
-        } else if key.eq_ignore_ascii_case("strip_leds") {
+        } else if is("strip_leds") {
             self.strip_leds = usize::from(v).min(STRIP_MAX);
-            false
-        } else {
-            u8::try_from(v).is_ok_and(|v| apply_flame_setting(key, v, &mut self.flame))
+        } else if is("strip_speed") {
+            self.speed = u32::from(v.clamp(1, 100));
+        } else if is("strip_width") {
+            self.width = u32::from(v.clamp(1, 50));
+        } else if is("strip_identify") {
+            self.identify = v != 0;
         }
     }
 
@@ -139,17 +150,59 @@ impl Settings {
         let s = |v: u8| (u32::from(v) * level * self.brightness / (255 * 100)) as u8;
         RGB8::new(s(c.r), s(c.g), s(c.b))
     }
+
+    /// One round trip of the sweep, in ms: about 20 s at speed 1, 5 s at the
+    /// default 30, 2 s at 100.
+    fn sweep_period_ms(&self) -> u64 {
+        200_000 / u64::from(self.speed + 9)
+    }
 }
 
-/// Breathing blue: a raised cosine, squared so the fade looks even to the eye.
+/// Breathing blue for the onboard LED: a raised cosine, squared so the fade
+/// looks even to the eye.
 fn breathe(ms: u64) -> RGB8 {
     let phase = (ms % BREATHE_MS) as f32 / BREATHE_MS as f32;
     let v = (1.0 - cos(2.0 * core::f32::consts::PI * phase)) / 2.0;
     RGB8::new(0, 0, (255.0 * v * v) as u8)
 }
 
-/// cos() without std or libm: a 7th-order Taylor series around 0, after folding
-/// x into [-pi, pi]. Plenty for an LED fade.
+/// The online strip: a soft glow sweeping from end to end and back, slowing at
+/// the ends like a pendulum, blue with a cyan core, over a faint blue base.
+fn sweep(settings: &Settings, ms: u64, px: &mut [RGB8]) {
+    let n = settings.strip_leds;
+    if n == 0 {
+        return;
+    }
+    let period = settings.sweep_period_ms();
+    let phase = (ms % period) as f32 / period as f32;
+    let pos = (n - 1) as f32 * (1.0 - cos(2.0 * core::f32::consts::PI * phase)) / 2.0;
+    let width = settings.width as f32;
+    for (i, p) in px.iter_mut().take(n).enumerate() {
+        let d = (i as f32 - pos) / width;
+        // A smooth bump that reaches zero at +/- width.
+        let glow = if d.abs() < 1.0 { (1.0 - d * d) * (1.0 - d * d) } else { 0.0 };
+        let v = SWEEP_BASE + (1.0 - SWEEP_BASE) * glow;
+        let core = glow * glow * glow;
+        *p = settings.scale(RGB8::new(0, (160.0 * core) as u8, (255.0 * v) as u8), STRIP_LEVEL);
+    }
+}
+
+/// The counting pattern, over every position the firmware can drive so a strip
+/// of any length shows all of it: the first LED green, every 10th red, the rest
+/// dim blue. Count the reds, then the blues after the last one.
+fn identify(settings: &Settings, px: &mut [RGB8]) {
+    for (i, p) in px.iter_mut().enumerate() {
+        let c = match i {
+            0 => RGB8::new(0, 255, 0),
+            _ if (i + 1) % 10 == 0 => RGB8::new(255, 0, 0),
+            _ => RGB8::new(0, 0, 64),
+        };
+        *p = settings.scale(c, STRIP_LEVEL);
+    }
+}
+
+/// cos() without std or libm: a Taylor series near 0, after folding x into
+/// [-pi/2, pi/2]. Plenty for an LED fade.
 fn cos(x: f32) -> f32 {
     use core::f32::consts::PI;
     let mut x = x % (2.0 * PI);
@@ -193,9 +246,6 @@ async fn main(_spawner: Spawner) -> ! {
     let (mut rx, _tx) = usb.split();
 
     let mut settings = Settings::default();
-    let mut flame = Flame::new(STRIP_MAX, FLAME_H, settings.flame, 0x5EED_2E10);
-    let mut heat = [0u8; STRIP_MAX * FLAME_H];
-
     let mut state = State::Boot;
     let mut line = LineBuf::new();
     let mut last_cmd = Instant::now();
@@ -212,28 +262,24 @@ async fn main(_spawner: Spawner) -> ! {
                     state = State::NoSignal;
                 }
 
-                let n = settings.strip_leds;
-                let (onboard, strip_px): (RGB8, [RGB8; STRIP_MAX]) = match state.color(ms) {
+                let mut px = [RGB8::default(); STRIP_MAX];
+                let onboard = match state.color(ms) {
                     Some(c) => {
                         let s = settings.scale(c, STRIP_LEVEL);
-                        (settings.scale(c, LED_LEVEL), core::array::from_fn(|i| if i < n { s } else { RGB8::default() }))
+                        px.iter_mut().take(settings.strip_leds).for_each(|p| *p = s);
+                        settings.scale(c, LED_LEVEL)
                     }
                     None => {
-                        flame.step(&mut heat);
-                        let row = &heat[FLAME_ROW * STRIP_MAX..][..STRIP_MAX];
-                        let px = core::array::from_fn(|i| {
-                            if i >= n {
-                                return RGB8::default();
-                            }
-                            let [r, g, b] = flame.color(row[i]);
-                            settings.scale(RGB8::new(r, g, b), STRIP_LEVEL)
-                        });
-                        (settings.scale(breathe(ms), LED_LEVEL), px)
+                        sweep(&settings, ms, &mut px);
+                        settings.scale(breathe(ms), LED_LEVEL)
                     }
                 };
+                if settings.identify {
+                    identify(&settings, &mut px);
+                }
 
                 // A failed frame is simply redrawn on the next tick.
-                let _ = join(led.write([onboard]), strip.write(strip_px)).await;
+                let _ = join(led.write([onboard]), strip.write(px)).await;
             }
             Either::Second(Ok(1)) => {
                 let Some(raw) = line.push(byte[0]) else {
@@ -242,18 +288,11 @@ async fn main(_spawner: Spawner) -> ! {
                 match parse_line(raw) {
                     Line::Command(cmd) => {
                         last_cmd = Instant::now();
-                        let new = State::from(cmd);
-                        if new == State::Online && state != State::Online {
-                            // Start the fire cold so it grows in.
-                            flame.reset(&mut heat);
-                        }
-                        state = new;
+                        state = State::from(cmd);
                     }
                     Line::Setting(key, value) => {
                         last_cmd = Instant::now();
-                        if settings.apply(key, value) {
-                            flame.set_params(settings.flame);
-                        }
+                        settings.apply(key, value);
                     }
                     Line::Unknown => {}
                 }

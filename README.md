@@ -42,7 +42,7 @@ The table below is the WS2812 board's rendering.
   serial; used by each firmware's `push-router.sh`.
 - `firmware/flame/` - the blue-flame effects as a shared `no_std` crate, used by
   the LCD firmwares and the PC preview so all run identical code: `wisps`
-  (glowing ribbons, what the LCDs show) and a heat-field flame.
+  (glowing ribbons, what the LCDs show) and a heat-field flame (preview only).
 - `firmware/flame-preview/` - a PC window that runs the flame for live tuning.
 
 ## Flashing the WS2812 board (MicroPython)

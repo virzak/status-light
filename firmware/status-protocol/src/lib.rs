@@ -6,8 +6,6 @@
 
 #![cfg_attr(not(test), no_std)]
 
-use flame::FlameParams;
-
 /// A state command from the router: one letter per line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -107,32 +105,6 @@ pub fn parse_line(raw: &[u8]) -> Line<'_> {
     }
 }
 
-/// Apply a flame-tuning setting (`cooling`, `drift`, ...) to `params`, clamping
-/// values the flame cannot use. Returns false if `key` is not a flame key.
-pub fn apply_flame_setting(key: &str, value: u8, params: &mut FlameParams) -> bool {
-    let is = |name: &str| key.eq_ignore_ascii_case(name);
-    if is("cooling") {
-        params.cooling = value;
-    } else if is("drift") {
-        params.drift = value.min(3);
-    } else if is("flicker") {
-        params.flicker = value.max(1);
-    } else if is("seed_min") {
-        params.seed_min = value;
-    } else if is("seed_max") {
-        params.seed_max = value;
-    } else if is("blue_full") {
-        params.blue_full = value.max(1);
-    } else if is("green_start") {
-        params.green_start = value;
-    } else if is("white_start") {
-        params.white_start = value;
-    } else {
-        return false;
-    }
-    true
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,13 +148,4 @@ mod tests {
         assert_eq!(feed(&mut lb, b"B\n"), Some(Line::Command(Command::Online)));
     }
 
-    #[test]
-    fn flame_settings_clamp() {
-        let mut p = FlameParams::default();
-        assert!(apply_flame_setting("drift", 9, &mut p));
-        assert_eq!(p.drift, 3);
-        assert!(apply_flame_setting("FLICKER", 0, &mut p));
-        assert_eq!(p.flicker, 1);
-        assert!(!apply_flame_setting("brightness", 50, &mut p));
-    }
 }

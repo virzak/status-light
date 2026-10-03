@@ -8,7 +8,7 @@ MicroPython firmware in `../zero-ws2812` and speaks the same protocol
 | State                 | Onboard LED     | Strip                          |
 |-----------------------|-----------------|--------------------------------|
 | Waiting for the router| dim white       | dim white                      |
-| Online (`B`)          | breathing blue  | blue flame (shared `flame` crate) |
+| Online (`B`)          | breathing blue  | a blue glow sweeping end to end |
 | Reconnecting (`A`)    | amber           | amber                          |
 | Offline (`R`)         | red             | red                            |
 | No commands for 60 s  | blinking red    | blinking red                   |
@@ -17,13 +17,21 @@ MicroPython firmware in `../zero-ws2812` and speaks the same protocol
 
 - Onboard WS2812: GPIO21, RGB colour order.
 - Strip: WS2812B-type, GRB order, data on GPIO2, ground to GND. The firmware
-  drives up to 150 LEDs; `strip.leds` in the settings picks how many (default 60).
+  drives up to 300 LEDs; `strip.leds` in the settings picks how many (default 60).
 
 Power the board, and through its 5V pin the strip, from a powered USB hub or a
 separate 5 V supply, not from a bus-powered hub on the router: the strip's
 current there made the board drop off USB. With a separate supply, feed the
 strip's 5V and GND from it and connect only GND and data to the board. The
 firmware caps the strip at about an eighth of full power at 100% brightness.
+
+## Strip settings
+
+Per board in `/etc/status-light.json` (see `settings.schema.json`), or on the
+Strip tab of the router's settings page: `leds`, the sweep's `speed` and
+`width`, and `identify`. A strip cannot report its length, so to find it, turn
+`identify` on: the first LED lights green, every 10th red and the rest dim blue.
+Count them, set `leds`, and turn `identify` off.
 
 ## Build
 

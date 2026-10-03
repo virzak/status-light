@@ -1682,9 +1682,6 @@ dependencies = [
 [[package]]
 name = "status-protocol"
 version = "0.1.0"
-dependencies = [
- "flame",
-]
 
 [[package]]
 name = "status-tdisplay-s3"

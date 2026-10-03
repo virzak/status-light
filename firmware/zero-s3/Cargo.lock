@@ -42,12 +42,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
-name = "az"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b7e4c2464d97fe331d41de9d5db0def0a96f4d823b8b32a2efd503578988973"
-
-[[package]]
 name = "bitfield"
 version = "0.19.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -525,16 +519,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "embedded-graphics-core"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95743bef3ff70fcba3930246c4e6872882bbea0dcc6da2ca860112e0cd4bd09f"
-dependencies = [
- "az",
- "byteorder",
-]
-
-[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -998,13 +982,6 @@ name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
-
-[[package]]
-name = "flame"
-version = "0.1.0"
-dependencies = [
- "embedded-graphics-core",
-]
 
 [[package]]
 name = "fnv"
@@ -1648,9 +1625,6 @@ dependencies = [
 [[package]]
 name = "status-protocol"
 version = "0.1.0"
-dependencies = [
- "flame",
-]
 
 [[package]]
 name = "status-zero-s3"
@@ -1667,7 +1641,6 @@ dependencies = [
  "esp-hal-smartled",
  "esp-println",
  "esp-rtos",
- "flame",
  "smart-leds-trait",
  "status-protocol",
 ]

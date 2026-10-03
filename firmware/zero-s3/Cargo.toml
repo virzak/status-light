@@ -7,7 +7,6 @@ license      = "MIT"
 description  = "Internet-status firmware for the Waveshare ESP32-S3-Zero: its onboard WS2812 plus an addressable LED strip"
 
 [dependencies]
-flame           = { path = "../flame" }
 status-protocol = { path = "../status-protocol" }
 
 esp-hal          = { version = "~1.2.2", features = ["esp32s3", "unstable"] }

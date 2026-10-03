@@ -23,9 +23,6 @@
         },
         "wisps": {
           "$ref": "#/definitions/wisps"
-        },
-        "flame": {
-          "$ref": "#/definitions/flame"
         }
       }
     },
@@ -52,9 +49,6 @@
           },
           "wisps": {
             "$ref": "#/definitions/wisps"
-          },
-          "flame": {
-            "$ref": "#/definitions/flame"
           }
         }
       }
@@ -62,16 +56,35 @@
   },
   "definitions": {
     "strip": {
-      "description": "An addressable LED strip on the board (the ESP32-S3-Zero drives one on GPIO2).",
+      "description": "An addressable LED strip on the board (the ESP32-S3-Zero drives one on GPIO2). Online, a soft glow sweeps along it from end to end and back.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "leds": {
-          "description": "Number of LEDs on the strip; 0 turns it off.",
+          "description": "Number of LEDs on the strip, 0 to turn it off. A strip cannot report its length: set identify to count them.",
           "type": "integer",
           "minimum": 0,
-          "maximum": 150,
+          "maximum": 300,
           "default": 60
+        },
+        "speed": {
+          "description": "How fast the glow sweeps, 1 (one round trip in about 20 s) to 100 (about 2 s).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 30
+        },
+        "width": {
+          "description": "How far the glow spreads either side of its centre, in LEDs.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 8
+        },
+        "identify": {
+          "description": "Show a counting pattern instead of the status: the first LED green, every 10th red, the rest dim blue. Count them, set leds, then turn this off.",
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -121,61 +134,6 @@
           "minimum": 0,
           "maximum": 100,
           "default": 50
-        }
-      }
-    },
-    "flame": {
-      "description": "The heat-field flame (FlameParams in firmware/flame), for displays that sample it rather than show ribbons: the ESP32-S3-Zero's LED strip. The LCDs show wisps instead. Omitted keys keep the defaults.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "cooling": {
-          "description": "Heat lost per row as it rises. Higher means shorter flames.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 20
-        },
-        "drift": {
-          "description": "Sideways drift while rising, 0 (straight up) to 3 (lively).",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 3
-        },
-        "flicker": {
-          "description": "One in this many base cells uses seed_min, the rest seed_max.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 64
-        },
-        "seed_min": {
-          "description": "Base heat of a cool (flickering) cell.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 255
-        },
-        "seed_max": {
-          "description": "Base heat of a hot cell.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 255
-        },
-        "blue_full": {
-          "description": "Heat at which blue reaches full brightness.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 255
-        },
-        "green_start": {
-          "description": "Heat at which green joins (cyan as it gets hotter).",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 254
-        },
-        "white_start": {
-          "description": "Heat at which red joins (the white tip).",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 254
         }
       }
     }
