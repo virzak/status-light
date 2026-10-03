@@ -4,6 +4,7 @@
 		"read": {
 			"file": {
 				"/etc/status-light.json": [ "read" ],
+				"/etc/init.d/flame-screen": [ "read" ],
 				"/sys/bus/usb/devices": [ "list" ],
 				"/sys/bus/usb/devices/*/idVendor": [ "read" ],
 				"/sys/bus/usb/devices/*/serial": [ "read" ],
