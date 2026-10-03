@@ -88,6 +88,30 @@ impl Gradient {
     }
 }
 
+/// How a pattern meets the background.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Edge {
+    /// It fades smoothly into the background.
+    Soft,
+    /// It is fully lit wherever it is, with a crisp boundary, so its colours
+    /// show at full strength. Breathe and heartbeat light the whole strip at
+    /// once, so they have no edge and stay soft.
+    Solid,
+}
+
+impl Edge {
+    pub fn name(self) -> &'static str {
+        match self {
+            Edge::Soft => "soft",
+            Edge::Solid => "solid",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Edge> {
+        [Edge::Soft, Edge::Solid].into_iter().find(|e| e.name().eq_ignore_ascii_case(name))
+    }
+}
+
 /// Tuning shared by the patterns; each uses what applies to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Params {
@@ -103,6 +127,14 @@ pub struct Params {
     pub secondary: Option<Rgb>,
     /// How the primary turns into the secondary.
     pub gradient: Gradient,
+    /// How much of the pattern is primary, 0 to 100: where along it the
+    /// gradient is half way (50, the default, is the middle).
+    pub balance: u32,
+    /// How abrupt the change is, 0 (a smooth gradient over the whole
+    /// pattern, the default) to 100 (a hard edge between two solid colours).
+    pub sharpness: u32,
+    /// How the pattern meets the background.
+    pub edge: Edge,
     /// The LEDs outside the pattern; black (the default) leaves them off.
     pub background: Rgb,
 }
@@ -112,7 +144,7 @@ pub const DEFAULT_PRIMARY: Rgb = [0x00, 0x40, 0xff];
 
 impl Default for Params {
     fn default() -> Self {
-        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, gradient: Gradient::Hue, background: [0, 0, 0] }
+        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, gradient: Gradient::Hue, balance: 50, sharpness: 0, edge: Edge::Soft, background: [0, 0, 0] }
     }
 }
 
@@ -188,13 +220,36 @@ pub fn render(pattern: Pattern, params: &Params, ms: u64, px: &mut [Rgb]) {
             // Each sparkle keeps its own fixed place on the gradient.
             Pattern::Twinkle => (twinkle(i, ms, params), unit(hash(i as u32).rotate_left(8))),
         };
+        // A solid edge lights every LED the pattern covers in full: all of a
+        // comet's tail or a glow's width, and the upper half of each wave.
+        let glow = match (params.edge, pattern) {
+            (Edge::Soft, _) | (_, Pattern::Breathe | Pattern::Heartbeat) => glow,
+            (Edge::Solid, Pattern::Wave) => if glow >= 0.25 { 1.0 } else { 0.0 },
+            // Anywhere the pattern reaches at all, so a comet's tail and a
+            // glow's edges, where the secondary is strongest, are included.
+            (Edge::Solid, _) => if glow > 0.001 { 1.0 } else { 0.0 },
+        };
+        let toward = shape(place, params.balance, params.sharpness);
         let color = match (params.secondary, params.gradient) {
-            (Some(secondary), Gradient::Hue) => blend_hue(params.primary, secondary, place),
-            (Some(secondary), Gradient::Mix) => blend(params.primary, secondary, place),
+            (Some(secondary), Gradient::Hue) => blend_hue(params.primary, secondary, toward),
+            (Some(secondary), Gradient::Mix) => blend(params.primary, secondary, toward),
             (None, _) => params.primary,
         };
         *p = blend(params.background, color, glow);
     }
+}
+
+/// How far a place within the pattern (0 to 1) is toward the secondary colour.
+/// Balance moves the half-way point along the pattern, like a gradient's
+/// midpoint in an image editor (the ends stay put); sharpness then narrows the
+/// blend around that point, down to a step at 100. At the defaults (50, 0) the
+/// place passes through unchanged.
+fn shape(place: f32, balance: u32, sharpness: u32) -> f32 {
+    let t = place.clamp(0.0, 1.0);
+    let mid = (balance.min(100) as f32 / 100.0).clamp(0.01, 0.99);
+    let u = if t < mid { 0.5 * t / mid } else { 0.5 + 0.5 * (t - mid) / (1.0 - mid) };
+    let width = (1.0 - sharpness.min(100) as f32 / 100.0).max(0.01);
+    ((u - 0.5) / width + 0.5).clamp(0.0, 1.0)
 }
 
 /// From `from` at 0 to `to` at 1.
@@ -426,6 +481,46 @@ mod tests {
         assert!(pink[0] == 255 && pink[1] == pink[2] && pink[1] > 100, "red to white {pink:?}");
         assert_eq!(Gradient::from_name("MIX"), Some(Gradient::Mix));
         assert_eq!(Gradient::from_name("rainbow"), None);
+    }
+
+    #[test]
+    fn gradient_shape() {
+        // The defaults change nothing.
+        for k in 0..=20 {
+            let t = k as f32 / 20.0;
+            assert!((shape(t, 50, 0) - t).abs() < 1e-6, "{t}");
+        }
+        // Balance moves the half-way point; the ends stay put.
+        assert!((shape(0.8, 80, 0) - 0.5).abs() < 1e-6);
+        assert_eq!((shape(0.0, 80, 0), shape(1.0, 80, 0)), (0.0, 1.0));
+        assert!(shape(0.5, 80, 0) < 0.5, "more primary at balance 80");
+        // Full sharpness is a step at the balance point.
+        assert_eq!((shape(0.69, 70, 100), shape(0.71, 70, 100)), (0.0, 1.0));
+        // In between, sharper means a steeper change around the midpoint.
+        assert!(shape(0.6, 50, 60) > shape(0.6, 50, 0));
+    }
+
+    #[test]
+    fn solid_edge_shows_the_secondary_at_full_strength() {
+        let (red, green) = ([255, 0, 0], [0, 255, 0]);
+        let soft = Params { primary: red, secondary: Some(green), gradient: Gradient::Mix, ..Params::default() };
+        let solid = Params { edge: Edge::Solid, ..soft };
+        let mut px = [[0u8; 3]; 60];
+        let ms = soft.period_ms() / 3;
+        render(Pattern::Comet, &solid, ms, &mut px);
+        // Every LED is either the background or fully lit somewhere on the
+        // red-green gradient, and the tail end reaches near-full green.
+        assert!(px.iter().all(|c| *c == [0, 0, 0] || u16::from(c[0]) + u16::from(c[1]) >= 254), "{px:?}");
+        assert!(px.iter().any(|c| c[1] > 230), "no full-strength secondary");
+        // With a soft edge the tail fades, so the secondary never gets there.
+        render(Pattern::Comet, &soft, ms, &mut px);
+        assert!(px.iter().all(|c| c[1] < 200), "soft tail too bright");
+        // Breathe has no edge: the same either way.
+        let (mut a, mut b) = ([[0u8; 3]; 60], [[0u8; 3]; 60]);
+        render(Pattern::Breathe, &soft, 777, &mut a);
+        render(Pattern::Breathe, &solid, 777, &mut b);
+        assert_eq!(a, b);
+        assert_eq!(Edge::from_name("SOLID"), Some(Edge::Solid));
     }
 
     #[test]

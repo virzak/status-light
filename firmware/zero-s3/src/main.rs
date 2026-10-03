@@ -136,6 +136,12 @@ impl Settings {
             }
             return;
         }
+        if is("strip_edge") {
+            if let Some(e) = strip::Edge::from_name(value) {
+                self.params.edge = e;
+            }
+            return;
+        }
         if is("strip_gradient") {
             if let Some(g) = strip::Gradient::from_name(value) {
                 self.params.gradient = g;
@@ -165,6 +171,10 @@ impl Settings {
             self.params.speed = u32::from(v.clamp(1, 100));
         } else if is("strip_width") {
             self.params.width = u32::from(v.clamp(1, 50));
+        } else if is("strip_balance") {
+            self.params.balance = u32::from(v.min(100));
+        } else if is("strip_sharpness") {
+            self.params.sharpness = u32::from(v.min(100));
         } else if is("strip_identify") {
             self.identify = v != 0;
         }

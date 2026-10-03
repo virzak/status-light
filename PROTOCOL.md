@@ -64,6 +64,10 @@ S strip_secondary #ffd000       (head, centre) to the secondary (tail, edges),
 S strip_background #000830      over the background (outside the pattern)
 S strip_gradient hue          primary to secondary round the hues (hue, default)
                                 or as a straight mix (mix)
+S strip_balance 50            how much of the pattern is primary, 0-100
+S strip_sharpness 0           how abrupt the change is, 0 (smooth) to 100 (hard edge)
+S strip_edge soft             soft: the pattern fades into the background; solid:
+                                fully lit with a crisp boundary
 S strip_identify 1            show a counting pattern instead of the status
 ```
 

@@ -31,7 +31,9 @@ Strip tab of the router's settings page: `leds`, the online `pattern` (sweep,
 comet, converge, breathe, wave, heartbeat or twinkle, from `../strip`), its
 `speed` and `width`, its colours (`#rrggbb` or `#rgb`: `primary` at the pattern's head or
 centre, an optional `secondary` its gradient runs to, round the colour wheel
-or as a straight mix per `gradient`, and the `background`
+or as a straight mix per `gradient`, shaped by `balance` (how much of it is
+primary) and `sharpness` (smooth to a hard edge), its `edge` (soft fades into
+the background, solid is fully lit with a crisp boundary), and the `background`
 outside the pattern, black (off) by default), and `identify`. A strip cannot report its length, so to find it, turn
 `identify` on: the first LED lights green, every 10th red and the rest dim blue.
 Count them, set `leds`, and turn `identify` off.

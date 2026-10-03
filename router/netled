@@ -40,7 +40,7 @@ SETTINGS_FILE=/etc/status-light.json
 # Wisps are the flame the LCD board shows; the strip keys are for a board with
 # an LED strip (sent as strip_<key>).
 WISP_KEYS="strands height sway speed glow width"
-STRIP_KEYS="leds speed width identify"
+STRIP_KEYS="leds speed width balance sharpness identify"
 
 settings_for() {
   ser=$1
@@ -51,6 +51,7 @@ settings_for() {
   for k in $STRIP_KEYS; do setting "strip_$k" "strip.$k"; done
   name_setting strip_pattern strip.pattern
   name_setting strip_gradient strip.gradient
+  name_setting strip_edge strip.edge
   color_setting strip_primary strip.primary
   color_setting strip_secondary strip.secondary
   color_setting strip_background strip.background
