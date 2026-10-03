@@ -20,7 +20,7 @@ const USB = '/sys/bus/usb/devices';
 interface Entry {
 	name?: string;
 	brightness?: number;
-	strip?: Record<string, number | boolean>;
+	strip?: Record<string, number | boolean | string>;
 	wisps?: Record<string, number>;
 }
 
@@ -35,7 +35,8 @@ interface Settings {
 type FormSection = Record<string, unknown>;
 
 /** [key, label, validator, description]; a validator of 'flag' is an on/off
- * switch, stored as a JSON boolean. */
+ * switch, stored as a JSON boolean, and 'pattern' a choice from PATTERNS,
+ * stored as its name. */
 type Field = readonly [key: string, label: string, datatype: string, description?: string];
 
 /** A USB status board currently plugged in. */
@@ -54,11 +55,25 @@ const WISPS: readonly Field[] = [
 	[ 'width', _('Ribbon width'), 'range(0,100)' ]
 ];
 
+// What the strip can show while online (the strip crate's Pattern), and which
+// of them use the width setting.
+const PATTERNS: readonly [ name: string, label: string ][] = [
+	[ 'sweep', _('Sweep: a glow sliding end to end') ],
+	[ 'comet', _('Comet: a head with a fading tail') ],
+	[ 'converge', _('Converge: glows meeting in the middle') ],
+	[ 'breathe', _('Breathe: the whole strip fading in and out') ],
+	[ 'wave', _('Wave: a wave travelling along') ],
+	[ 'heartbeat', _('Heartbeat: a double pulse') ],
+	[ 'twinkle', _('Twinkle: LEDs sparkling at random') ]
+];
+const USES_WIDTH = [ 'sweep', 'comet', 'converge', 'wave' ];
+
 // An addressable LED strip on a board.
 const STRIP: readonly Field[] = [
 	[ 'leds', _('LEDs on the strip'), 'range(0,300)' ],
-	[ 'speed', _('Sweep speed'), 'range(1,100)' ],
-	[ 'width', _('Glow width (LEDs)'), 'range(1,50)' ],
+	[ 'pattern', _('Pattern'), 'pattern' ],
+	[ 'speed', _('Speed'), 'range(1,100)' ],
+	[ 'width', _('Width (LEDs)'), 'range(1,50)' ],
 	[ 'identify', _('Identify LEDs'), 'flag',
 		_('Show a counting pattern instead of the status: the first LED green, every 10th red, the rest dim blue. Count them, enter the number above, then turn this off.') ]
 ];
@@ -118,13 +133,18 @@ function collect(section: FormSection): Entry | null {
 	if (brightness != null)
 		out.brightness = brightness;
 	for (const g of GROUP_NAMES) {
-		const group: Record<string, number | boolean> = {};
+		const group: Record<string, number | boolean | string> = {};
 		for (const [ k, , datatype ] of GROUPS[g]) {
 			const v = section[`${g}_${k}`];
-			// A switch is only written while on, so the file stays minimal.
+			// A switch is only written while on, and a choice only when one is
+			// made, so the file stays minimal.
 			if (datatype == 'flag') {
 				if (v == '1')
 					group[k] = true;
+			}
+			else if (datatype == 'pattern') {
+				if (v)
+					group[k] = String(v);
 			}
 			else {
 				const n = num(v);
@@ -133,7 +153,7 @@ function collect(section: FormSection): Entry | null {
 			}
 		}
 		if (Object.keys(group).length)
-			out[g] = group as Record<string, number>;
+			Object.assign(out, { [g]: group });
 	}
 
 	return Object.keys(out).length ? out : null;
@@ -147,9 +167,20 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 			o.rmempty = false;
 			continue;
 		}
+		if (datatype == 'pattern') {
+			const o = s.taboption(tab, form.ListValue, `${group}_${k}`, label);
+			o.value('', _('Default (sweep)'));
+			for (const [ name, text ] of PATTERNS)
+				o.value(name, text);
+			continue;
+		}
 		const o = s.taboption(tab, form.Value, `${group}_${k}`, label);
 		o.datatype = datatype;
 		o.placeholder = _('default');
+		// Width only means something to some patterns; hide it for the rest.
+		if (group == 'strip' && k == 'width')
+			for (const name of [ '', ...USES_WIDTH ])
+				o.depends(`${group}_pattern`, name);
 	}
 }
 

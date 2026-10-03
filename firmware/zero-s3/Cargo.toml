@@ -8,6 +8,7 @@ description  = "Internet-status firmware for the Waveshare ESP32-S3-Zero: its on
 
 [dependencies]
 status-protocol = { path = "../status-protocol" }
+strip           = { path = "../strip" }
 
 esp-hal          = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
 esp-hal-smartled = { version = "0.18.0", features = ["esp32s3"] }

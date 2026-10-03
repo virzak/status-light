@@ -56,7 +56,7 @@
   },
   "definitions": {
     "strip": {
-      "description": "An addressable LED strip on the board (the ESP32-S3-Zero drives one on GPIO2). Online, a soft glow sweeps along it from end to end and back.",
+      "description": "An addressable LED strip on the board (the ESP32-S3-Zero drives one on GPIO2). Online, it shows a pattern; the other states are solid colours.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -67,15 +67,29 @@
           "maximum": 300,
           "default": 60
         },
+        "pattern": {
+          "description": "What the strip shows while online: sweep (a glow sliding end to end), comet (a head with a fading tail, wrapping round), converge (glows meeting in the middle), breathe (the whole strip fading in and out), wave (a wave travelling along), heartbeat (a double pulse) or twinkle (LEDs sparkling at random).",
+          "type": "string",
+          "enum": [
+            "sweep",
+            "comet",
+            "converge",
+            "breathe",
+            "wave",
+            "heartbeat",
+            "twinkle"
+          ],
+          "default": "sweep"
+        },
         "speed": {
-          "description": "How fast the glow sweeps, 1 (one round trip in about 20 s) to 100 (about 2 s).",
+          "description": "How fast the pattern moves, 1 (slow) to 100 (fast): one sweep round trip in about 20 s to 2 s; a heartbeat runs 4 times faster.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100,
           "default": 30
         },
         "width": {
-          "description": "How far the glow spreads either side of its centre, in LEDs.",
+          "description": "In LEDs: the glow either side of its centre (sweep, converge), the tail (comet) or half the wavelength (wave). Other patterns ignore it.",
           "type": "integer",
           "minimum": 1,
           "maximum": 50,

@@ -1643,7 +1643,12 @@ dependencies = [
  "esp-rtos",
  "smart-leds-trait",
  "status-protocol",
+ "strip",
 ]
+
+[[package]]
+name = "strip"
+version = "0.1.0"
 
 [[package]]
 name = "strsim"
