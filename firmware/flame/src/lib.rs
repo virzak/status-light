@@ -7,8 +7,14 @@
 //! The heat field is a Doom-style fire: the bottom row is seeded hot each frame
 //! and heat rises, cooling and drifting, until it fades to black. A blue palette
 //! maps heat to colour (black, navy, blue, cyan, white tip).
+//!
+//! [`wisps`] is the second effect: thin glowing ribbons of burning gas, which
+//! the LCDs show. The heat field stays for displays that sample it, like an
+//! LED strip, where ribbons cannot show.
 
 #![no_std]
+
+pub mod wisps;
 
 use embedded_graphics_core::pixelcolor::{Rgb565, RgbColor};
 
