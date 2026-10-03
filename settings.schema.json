@@ -115,6 +115,15 @@
           "maximum": 100,
           "default": 0
         },
+        "edge": {
+          "description": "How the pattern meets the background: soft fades into it; solid lights every LED the pattern covers in full, with a crisp boundary, so its colours show at full strength. Breathe and heartbeat have no edge.",
+          "type": "string",
+          "enum": [
+            "soft",
+            "solid"
+          ],
+          "default": "soft"
+        },
         "background": {
           "description": "The colour of the LEDs outside the pattern, as #rrggbb or #rgb. Black (off) by default.",
           "type": "string",

@@ -136,6 +136,12 @@ impl Settings {
             }
             return;
         }
+        if is("strip_edge") {
+            if let Some(e) = strip::Edge::from_name(value) {
+                self.params.edge = e;
+            }
+            return;
+        }
         if is("strip_gradient") {
             if let Some(g) = strip::Gradient::from_name(value) {
                 self.params.gradient = g;

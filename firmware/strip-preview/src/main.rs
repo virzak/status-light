@@ -10,7 +10,8 @@
 //! `--leds N` sets the strip length (default 60); `--primary`, `--secondary`
 //! and `--background`, each `#rrggbb`, the colours, and `--gradient hue|mix`
 //! how the primary turns into the secondary; `--balance` and `--sharpness`
-//! (0-100) shape that gradient.
+//! (0-100) shape that gradient; `--edge soft|solid` how the pattern meets the
+//! background.
 
 use std::time::Instant;
 
@@ -34,6 +35,9 @@ fn main() {
         params.gradient = strip::Gradient::from_name(g).expect("--gradient: hue or mix");
     }
     let number = |name: &str| arg(name).map(|v| v.parse::<u32>().unwrap_or_else(|_| panic!("{name}: expected 0-100")));
+    if let Some(e) = arg("--edge") {
+        params.edge = strip::Edge::from_name(e).expect("--edge: soft or solid");
+    }
     if let Some(b) = number("--balance") {
         params.balance = b;
     }
