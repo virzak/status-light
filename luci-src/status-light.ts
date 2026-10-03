@@ -73,11 +73,11 @@ const STRIP: readonly Field[] = [
 	[ 'leds', _('LEDs on the strip'), 'range(0,300)' ],
 	[ 'pattern', _('Pattern'), 'pattern' ],
 	[ 'primary', _('Primary colour'), 'color',
-		_('The pattern at its head, centre or crest, as #rrggbb. Empty means the default blue, #0040ff.') ],
+		_('The pattern at its head, centre or crest, as #rrggbb or #rgb. Empty means the default blue, #0040ff.') ],
 	[ 'secondary', _('Secondary colour'), 'color',
-		_('Where the pattern\'s gradient ends, as #rrggbb: a comet\'s tail, a glow\'s edges, the far end of the strip. Empty keeps the whole pattern in the primary.') ],
+		_('Where the pattern\'s gradient ends, as #rrggbb or #rgb: a comet\'s tail, a glow\'s edges, the far end of the strip. Empty keeps the whole pattern in the primary.') ],
 	[ 'background', _('Background colour'), 'color',
-		_('The LEDs outside the pattern, as #rrggbb. Empty means black (off).') ],
+		_('The LEDs outside the pattern, as #rrggbb or #rgb. Empty means black (off).') ],
 	[ 'speed', _('Speed'), 'range(1,100)' ],
 	[ 'width', _('Width (LEDs)'), 'range(1,50)' ],
 	[ 'identify', _('Identify LEDs'), 'flag',
@@ -149,8 +149,9 @@ function collect(section: FormSection): Entry | null {
 					group[k] = true;
 			}
 			else if (datatype == 'pattern' || datatype == 'color') {
-				if (v)
-					group[k] = String(v);
+				const text = String(v ?? '').trim();
+				if (text)
+					group[k] = text;
 			}
 			else {
 				const n = num(v);
@@ -165,6 +166,55 @@ function collect(section: FormSection): Entry | null {
 	return Object.keys(out).length ? out : null;
 }
 
+/** `#rrggbb` or `#rgb`, expanded to `#rrggbb` (the colour picker needs six
+ * digits); null if `v` is neither. */
+function longHex(v: string): string | null {
+	const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v.trim());
+	if (!m)
+		return null;
+	const hex = m[1].length == 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+	return `#${hex.toLowerCase()}`;
+}
+
+// A colour field: LuCI has no colour widget, so this is the usual text box
+// (typed hex, validated, empty meaning the default) with the browser's colour
+// picker beside it, kept in sync both ways. An empty field shows its default
+// colour faded.
+const ColorValue = form.Value.extend({
+	renderWidget(section_id: string, option_index: number, cfgvalue: unknown) {
+		const node = this.super('renderWidget', [ section_id, option_index, cfgvalue ]) as HTMLElement;
+		const text = node.querySelector('input') as HTMLInputElement;
+		const fallback = longHex(String(this.placeholder ?? '')) ?? '#000000';
+		const swatch = E('input', {
+			type: 'color',
+			title: _('Pick a colour'),
+			style: 'width:2.6em; height:2.2em; padding:0; border:0; background:none; cursor:pointer; flex:none'
+		}) as HTMLInputElement;
+
+		const show = () => {
+			const c = longHex(text.value);
+			swatch.value = c ?? fallback;
+			swatch.style.opacity = c ? '1' : '0.4';
+		};
+		swatch.addEventListener('input', () => {
+			text.value = swatch.value;
+			// The events LuCI's text field listens to, so it revalidates and
+			// the form sees the change.
+			text.dispatchEvent(new Event('keyup'));
+			text.dispatchEvent(new Event('change', { bubbles: true }));
+			show();
+		});
+		text.addEventListener('input', show);
+
+		node.style.display = 'flex';
+		node.style.alignItems = 'center';
+		node.style.gap = '.5em';
+		node.appendChild(swatch);
+		show();
+		return node;
+	}
+});
+
 // One field per key of GROUPS[group] on the given tab.
 function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: string, group: Group) {
 	for (const [ k, label, datatype, description ] of GROUPS[group]) {
@@ -174,10 +224,10 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 			continue;
 		}
 		if (datatype == 'color') {
-			const o = s.taboption(tab, form.Value, `${group}_${k}`, label, description ?? '');
+			const o = s.taboption(tab, ColorValue, `${group}_${k}`, label, description ?? '');
 			o.placeholder = ({ primary: '#0040ff', background: '#000000' } as Record<string, string>)[k] ?? _('none');
 			o.validate = (_section_id: string, value: string) =>
-				(!value || /^#[0-9a-fA-F]{6}$/.test(value)) ? true : _('Expecting a colour as #rrggbb');
+				(!value || longHex(value)) ? true : _('Expecting a colour as #rrggbb or #rgb');
 			continue;
 		}
 		if (datatype == 'pattern') {

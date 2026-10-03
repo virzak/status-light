@@ -59,7 +59,7 @@ S strip_pattern comet         pattern while online: sweep, comet, converge,
                                 breathe, wave, heartbeat, twinkle
 S strip_speed 30              speed, 1-100
 S strip_width 8               width in LEDs, 1-50
-S strip_primary #ff2000       colours, #rrggbb: a gradient from the primary
+S strip_primary #ff2000       colours, #rrggbb or #rgb: a gradient from the primary
 S strip_secondary #ffd000       (head, centre) to the secondary (tail, edges),
 S strip_background #000830      over the background (outside the pattern)
 S strip_identify 1            show a counting pattern instead of the status

@@ -29,7 +29,7 @@ firmware caps the strip at about an eighth of full power at 100% brightness.
 Per board in `/etc/status-light.json` (see `settings.schema.json`), or on the
 Strip tab of the router's settings page: `leds`, the online `pattern` (sweep,
 comet, converge, breathe, wave, heartbeat or twinkle, from `../strip`), its
-`speed` and `width`, its colours (`#rrggbb`: `primary` at the pattern's head or
+`speed` and `width`, its colours (`#rrggbb` or `#rgb`: `primary` at the pattern's head or
 centre, an optional `secondary` its gradient runs to, and the `background`
 outside the pattern, black (off) by default), and `identify`. A strip cannot report its length, so to find it, turn
 `identify` on: the first LED lights green, every 10th red and the rest dim blue.

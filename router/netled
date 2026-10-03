@@ -71,12 +71,12 @@ name_setting() {
   case "$v" in ''|*[!a-z_]*) ;; *) echo "S $1 $v" ;; esac
 }
 
-# color_setting <key> <json path>: one S line for a #rrggbb colour, passed only
-# if it is exactly that.
+# color_setting <key> <json path>: one S line for a #rrggbb or #rgb colour,
+# passed only if it is exactly that.
 color_setting() {
   v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$2" 2>/dev/null)
   h='[0-9a-fA-F]'
-  case "$v" in \#$h$h$h$h$h$h) echo "S $1 $v" ;; esac
+  case "$v" in \#$h$h$h$h$h$h|\#$h$h$h) echo "S $1 $v" ;; esac
 }
 
 send_settings() {

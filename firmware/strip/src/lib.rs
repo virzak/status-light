@@ -178,14 +178,20 @@ fn blend(from: Rgb, to: Rgb, amount: f32) -> Rgb {
     [mix(from[0], to[0]), mix(from[1], to[1]), mix(from[2], to[2])]
 }
 
-/// Parse `#rrggbb` (the `#` is optional) into a colour.
+/// Parse `#rrggbb`, or the short `#rgb` where each digit doubles (`#f80` is
+/// `#ff8800`), into a colour. The `#` is optional.
 pub fn parse_color(s: &str) -> Option<Rgb> {
     let hex = s.strip_prefix('#').unwrap_or(s);
-    if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
     }
+    let digit = |i: usize| u8::from_str_radix(&hex[i..i + 1], 16).ok();
     let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
-    Some([byte(0)?, byte(2)?, byte(4)?])
+    match hex.len() {
+        3 => Some([digit(0)? * 17, digit(1)? * 17, digit(2)? * 17]),
+        6 => Some([byte(0)?, byte(2)?, byte(4)?]),
+        _ => None,
+    }
 }
 
 /// A smooth bump: 1 at 0, falling to 0 at +/- 1 and staying there.
@@ -324,7 +330,9 @@ mod tests {
     fn colors_parse() {
         assert_eq!(parse_color("#0040ff"), Some([0x00, 0x40, 0xff]));
         assert_eq!(parse_color("FF8000"), Some([0xff, 0x80, 0x00]));
-        for bad in ["", "#fff", "#12345g", "#1234567", "blue"] {
+        assert_eq!(parse_color("#f80"), Some([0xff, 0x88, 0x00]));
+        assert_eq!(parse_color("#FFF"), Some([0xff, 0xff, 0xff]));
+        for bad in ["", "#ff", "#ffff", "#12345g", "#1234567", "#fgf", "blue"] {
             assert_eq!(parse_color(bad), None, "{bad}");
         }
     }
