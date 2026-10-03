@@ -170,6 +170,12 @@ impl Flame {
         }
     }
 
+    /// The palette colour for one heat value; for renderers that sample the
+    /// field instead of drawing all of it (an LED strip shows one row).
+    pub fn color(&self, heat: u8) -> Rgb565 {
+        self.palette[heat as usize]
+    }
+
     /// Map the heat field into RGB565 pixels. `out` is `w * h`, row-major.
     pub fn render(&self, heat: &[u8], out: &mut [Rgb565]) {
         for (o, &hh) in out.iter_mut().zip(heat.iter()) {

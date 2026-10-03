@@ -10,6 +10,7 @@ description  = "Internet-status display firmware for the LilyGO T-Display-S3 (es
 # Board support and the i8080 LCD driver (both published from zompinc/esp-lcd-i8080).
 lilygo-t-display-s3 = "0.1.0"
 flame = { path = "../flame" }
+status-protocol = { path = "../status-protocol" }
 
 esp-hal      = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
 esp-rtos     = { version = "0.4.0", features = ["embassy", "esp-alloc", "esp32s3", "log-04"] }
