@@ -7,7 +7,7 @@ protocol in `../../PROTOCOL.md`.
 | State                 | Onboard LED     | Strip                          |
 |-----------------------|-----------------|--------------------------------|
 | Waiting for the router| dim white       | dim white                      |
-| Online (`B`)          | breathing blue  | a blue glow sweeping end to end |
+| Online (`B`)          | breathing blue  | a blue pattern (sweep by default) |
 | Reconnecting (`A`)    | amber           | amber                          |
 | Offline (`R`)         | red, flashing 0.5 s on / 0.5 s off | same           |
 | No commands for 60 s  | red, pulsing slowly | same                       |
@@ -27,8 +27,9 @@ firmware caps the strip at about an eighth of full power at 100% brightness.
 ## Strip settings
 
 Per board in `/etc/status-light.json` (see `settings.schema.json`), or on the
-Strip tab of the router's settings page: `leds`, the sweep's `speed` and
-`width`, and `identify`. A strip cannot report its length, so to find it, turn
+Strip tab of the router's settings page: `leds`, the online `pattern` (sweep,
+comet, converge, breathe, wave, heartbeat or twinkle, from `../strip`), its
+`speed` and `width`, and `identify`. A strip cannot report its length, so to find it, turn
 `identify` on: the first LED lights green, every 10th red and the rest dim blue.
 Count them, set `leds`, and turn `identify` off.
 

@@ -54,10 +54,11 @@ S reset              restore the built-in defaults; the values below follow
 S brightness 40      percent, 0-100
 S strands 40         wisp flame: strands, height, sway, speed, glow, width
 S sway 60              (see WispParams)
-S strip_leds 60      an LED strip on the board: LEDs on it (0-300), how fast
-S strip_speed 30       its glow sweeps (1-100) and how wide it is (LEDs, 1-50);
-S strip_width 8        strip_identify 1 shows a counting pattern instead
-S strip_identify 0
+S strip_leds 60      an LED strip on the board: LEDs on it (0-300), the
+S strip_pattern sweep  pattern it shows while online (sweep, comet, converge,
+S strip_speed 30       breathe, wave, heartbeat, twinkle), its speed (1-100)
+S strip_width 8        and width (LEDs, 1-50); strip_identify 1 shows a
+S strip_identify 0     counting pattern instead
 ```
 
 A board applies the keys it supports and ignores the rest, so a board without
