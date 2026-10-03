@@ -28,8 +28,7 @@ LED and its strip.
   by USB vendor ID `303a`, checks connectivity every 5 s and writes the state to
   the board and to `/tmp/netled.state`.
 - `router/netled.init` - procd service, installed as `/etc/init.d/netled`.
-- `router/flame-screen/` - the blue flame on the router's built-in LCD while GL's
-  screen UI sleeps (see below).
+- `devices/` - extras for specific routers (see "Device extras" below).
 - `firmware/zero-s3/` - Rust (esp-hal) for the ESP32-S3-Zero and its LED strip;
   build, wiring and flash notes live in that directory.
 - `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
@@ -59,35 +58,13 @@ tar cf - -C router netled netled.init | ssh "$ROUTER" 'cd /tmp && tar xf - && su
 Add `/usr/bin/netled` and `/etc/init.d/netled` to `/etc/sysupgrade.conf` so they
 survive firmware upgrades.
 
-## The router's built-in LCD
+## Device extras
 
-The Flint 4's screen is a standard Linux framebuffer (`/dev/fb0`, 240x320 RGB565,
-GL's `st7789p3` driver), so `flame-screen` draws the shared flame straight into
-it. GL's screen UI keeps running; when it sleeps (its screen timeout) the flame
-fills the panel, and a touch wakes GL's UI instantly. It reads the state netled
-writes to `/tmp/netled.state`, and blinks red if that file goes stale.
+Extras for specific routers live under `devices/`; the rest works on any OpenWrt
+router with a USB port.
 
-Build the static aarch64 binary in Docker, then install it and the service:
-
-```
-docker run --rm -v "$PWD:/src" -w /src/router/flame-screen \
-  messense/rust-musl-cross:aarch64-musl cargo build --release
-scp -O router/flame-screen/target/aarch64-unknown-linux-musl/release/flame-screen \
-  router/flame-screen/flame-screen.init "$ROUTER:/tmp/"
-ssh "$ROUTER" 'sudo sh -c "cp /tmp/flame-screen /usr/bin/ && chmod 755 /usr/bin/flame-screen
-  tr -d \"\\r\" < /tmp/flame-screen.init > /etc/init.d/flame-screen
-  chmod 755 /etc/init.d/flame-screen
-  /etc/init.d/flame-screen enable && /etc/init.d/flame-screen start"'
-```
-
-To go back to GL's stock screen:
-
-```
-/etc/init.d/flame-screen stop && /etc/init.d/flame-screen disable
-```
-
-These files are deliberately not in `/etc/sysupgrade.conf`, so a firmware upgrade
-also restores the stock screen.
+- `devices/gl-inet-flint4/` - the GL.iNet Flint 4 (GL-BE14000): a blue flame on
+  its built-in LCD while GL's screen UI sleeps, and notes on GL's firmware.
 
 ## Settings
 

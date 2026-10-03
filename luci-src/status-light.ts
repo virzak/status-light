@@ -15,6 +15,9 @@ import ui from 'luci/ui';
 const FILE = '/etc/status-light.json';
 const SCHEMA = 'https://raw.githubusercontent.com/virzak/status-light/master/settings.schema.json';
 const USB = '/sys/bus/usb/devices';
+// Installed with flame-screen, which draws on a router's own LCD (GL.iNet Flint
+// 4, under devices/); the page shows the LCD settings only when it is there.
+const FLAME_SCREEN = '/etc/init.d/flame-screen';
 
 /** A board or LCD entry in the settings file. */
 interface Entry {
@@ -286,15 +289,18 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 
 export default view.extend({
 	map: null as LuCI.form.JSONMap | null,
+	// The file's LCD settings, kept as they are on routers without flame-screen.
+	keptLcd: undefined as Entry | undefined,
 
-	load(): Promise<[ string, Board[] ]> {
+	load(): Promise<[ string, Board[], boolean ]> {
 		return Promise.all([
 			L.resolveDefault(fs.read(FILE), '{}'),
-			presentBoards()
+			presentBoards(),
+			L.resolveDefault(fs.stat(FLAME_SCREEN).then(() => true), false)
 		]);
 	},
 
-	render([ text, present ]: [ string, Board[] ]) {
+	render([ text, present, hasScreen ]: [ string, Board[], boolean ]) {
 		let settings: Settings = {};
 		try {
 			const parsed: unknown = JSON.parse(text || '{}');
@@ -308,23 +314,28 @@ export default view.extend({
 		// Loaded boards get explicit names: JSONMap's add() names a new section
 		// "board<count>", which can collide with an auto-named loaded one and
 		// overwrite it (fixed in later LuCI).
+		this.keptLcd = hasScreen ? undefined : settings.lcd;
 		const data = {
-			lcd: flatten(settings.lcd),
+			...(hasScreen ? { lcd: flatten(settings.lcd) } : {}),
 			board: Object.entries(L.isObject(settings.boards) ? settings.boards! : {})
 				.map(([ serial, b ], i) => Object.assign({ '.name': `b${i}`, serial }, flatten(b)))
 		};
 
 		const m = new form.JSONMap(data, _('Status Light'),
-			_('Settings for the router LCD and the USB status boards, saved to %s. Empty fields use the built-in defaults.').format(FILE));
+			(hasScreen
+				? _('Settings for the router LCD and the USB status boards, saved to %s. Empty fields use the built-in defaults.')
+				: _('Settings for the USB status boards, saved to %s. Empty fields use the built-in defaults.')).format(FILE));
 
-		const lcd = m.section(form.NamedSection, 'lcd', 'lcd', _('Router LCD'),
-			_('The flame shown while GL\'s screen UI sleeps.'));
-		lcd.tab('general', _('General'));
-		lcd.tab('flame', _('Flame'));
-		let o = lcd.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
-		o.datatype = 'range(5,100)';
-		o.placeholder = '80';
-		addGroupOptions(lcd, 'flame', 'wisps');
+		if (hasScreen) {
+			const lcd = m.section(form.NamedSection, 'lcd', 'lcd', _('Router LCD'),
+				_('The flame shown while GL\'s screen UI sleeps.'));
+			lcd.tab('general', _('General'));
+			lcd.tab('flame', _('Flame'));
+			const b = lcd.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
+			b.datatype = 'range(5,100)';
+			b.placeholder = '80';
+			addGroupOptions(lcd, 'flame', 'wisps');
+		}
 
 		const boards = m.section(form.TypedSection, 'board', _('USB status boards'),
 			_('Matched by USB serial number. Boards currently plugged in are offered in the list.'));
@@ -334,7 +345,7 @@ export default view.extend({
 		boards.tab('flame', _('Flame'));
 		boards.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s. While online it shows the pattern below in your colours; otherwise it shows the status colour.'));
 
-		o = boards.taboption('general', form.Value, 'serial', _('USB serial number'));
+		let o = boards.taboption('general', form.Value, 'serial', _('USB serial number'));
 		o.rmempty = false;
 		for (const b of present)
 			o.value(b.serial, `${b.serial} (${b.product})`);
@@ -365,7 +376,8 @@ export default view.extend({
 			const config = m.data;
 			const out: Settings = { '$schema': SCHEMA };
 
-			const lcd = collect(config.get('json', 'lcd') || {});
+			// Without flame-screen there is no LCD section: keep the file's as is.
+			const lcd = this.keptLcd ?? collect(config.get('json', 'lcd') || {});
 			if (lcd)
 				out.lcd = lcd;
 
