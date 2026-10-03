@@ -3,7 +3,9 @@
 //!
 //! Pure `no_std`, no allocation and no state: a frame is a function of the time,
 //! the strip length and the [`Params`], so switching pattern takes effect on the
-//! next frame. Colours are full scale; the caller scales them to its brightness.
+//! next frame. Each pattern gives every LED a level from 0 to 1, drawn as a
+//! blend from the secondary colour (level 0) to the primary (level 1). Colours
+//! are full scale; the caller scales them to its brightness.
 
 #![no_std]
 
@@ -68,11 +70,19 @@ pub struct Params {
     /// In LEDs: the glow's half-width (sweep, converge), the tail (comet) or
     /// half the wavelength (wave).
     pub width: u32,
+    /// The colour at full level: the moving or pulsing part.
+    pub primary: Rgb,
+    /// The colour at level 0; black (the default) means none, so the pattern
+    /// fades from dark to the primary.
+    pub secondary: Rgb,
 }
+
+/// The default primary colour, a strong blue.
+pub const DEFAULT_PRIMARY: Rgb = [0x00, 0x40, 0xff];
 
 impl Default for Params {
     fn default() -> Self {
-        Self { speed: 30, width: 8 }
+        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: [0, 0, 0] }
     }
 }
 
@@ -147,15 +157,25 @@ pub fn render(pattern: Pattern, params: &Params, ms: u64, px: &mut [Rgb]) {
             }
             Pattern::Twinkle => BASE + (1.0 - BASE) * twinkle(i, ms, params),
         };
-        *p = blue(level);
+        *p = blend(params.secondary, params.primary, level);
     }
 }
 
-/// Blue at `level` (0 to 1), turning cyan as it nears full brightness.
-fn blue(level: f32) -> Rgb {
+/// From `from` at level 0 to `to` at level 1.
+fn blend(from: Rgb, to: Rgb, level: f32) -> Rgb {
     let v = level.clamp(0.0, 1.0);
-    let core = v * v * v * v;
-    [0, (160.0 * core) as u8, (255.0 * v) as u8]
+    let mix = |a: u8, b: u8| (f32::from(a) + (f32::from(b) - f32::from(a)) * v + 0.5) as u8;
+    [mix(from[0], to[0]), mix(from[1], to[1]), mix(from[2], to[2])]
+}
+
+/// Parse `#rrggbb` (the `#` is optional) into a colour.
+pub fn parse_color(s: &str) -> Option<Rgb> {
+    let hex = s.strip_prefix('#').unwrap_or(s);
+    if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+    Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
 /// A smooth bump: 1 at 0, falling to 0 at +/- 1 and staying there.
@@ -246,9 +266,34 @@ mod tests {
             let mut px = [[0u8; 3]; 60];
             for ms in (0..10_000).step_by(37) {
                 render(p, &params, ms, &mut px);
-                // Blue only (red off), and every pattern keeps a floor of light.
+                // The default primary has no red, and every pattern keeps a
+                // floor of light.
                 assert!(px.iter().all(|c| c[0] == 0 && c[2] > 0), "{p:?} at {ms}");
             }
+        }
+    }
+
+    #[test]
+    fn levels_blend_from_secondary_to_primary() {
+        let (white, purple) = ([255, 255, 255], [128, 0, 128]);
+        assert_eq!(blend(purple, white, 0.0), purple);
+        assert_eq!(blend(purple, white, 1.0), white);
+        assert_eq!(blend(purple, white, 0.5), [192, 128, 192]);
+        // With both colours set, no LED is darker than the secondary.
+        let params = Params { primary: white, secondary: purple, ..Params::default() };
+        let mut px = [[0u8; 3]; 60];
+        for p in Pattern::ALL {
+            render(p, &params, 1234, &mut px);
+            assert!(px.iter().all(|c| c[0] >= 128 && c[2] >= 128), "{p:?}");
+        }
+    }
+
+    #[test]
+    fn colors_parse() {
+        assert_eq!(parse_color("#0040ff"), Some([0x00, 0x40, 0xff]));
+        assert_eq!(parse_color("FF8000"), Some([0xff, 0x80, 0x00]));
+        for bad in ["", "#fff", "#12345g", "#1234567", "blue"] {
+            assert_eq!(parse_color(bad), None, "{bad}");
         }
     }
 

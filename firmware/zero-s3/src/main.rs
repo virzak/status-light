@@ -103,7 +103,7 @@ struct Settings {
     strip_leds: usize,
     /// What the strip shows while online.
     pattern: Pattern,
-    /// The pattern's speed and width.
+    /// The pattern's speed, width and colours.
     params: Params,
     /// Show the counting pattern on the strip instead of the status.
     identify: bool,
@@ -133,6 +133,16 @@ impl Settings {
         if is("strip_pattern") {
             if let Some(p) = Pattern::from_name(value) {
                 self.pattern = p;
+            }
+            return;
+        }
+        if is("strip_primary") || is("strip_secondary") {
+            if let Some(c) = strip::parse_color(value) {
+                if is("strip_primary") {
+                    self.params.primary = c;
+                } else {
+                    self.params.secondary = c;
+                }
             }
             return;
         }

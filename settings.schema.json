@@ -81,6 +81,17 @@
           ],
           "default": "sweep"
         },
+        "primary": {
+          "description": "The pattern's colour at full level (the moving or pulsing part), as #rrggbb.",
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "default": "#0040ff"
+        },
+        "secondary": {
+          "description": "The colour where the pattern is at rest, as #rrggbb; each LED blends from it to the primary. Without one the pattern fades from dark.",
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
         "speed": {
           "description": "How fast the pattern moves, 1 (slow) to 100 (fast): one sweep round trip in about 20 s to 2 s; a heartbeat runs 4 times faster.",
           "type": "integer",

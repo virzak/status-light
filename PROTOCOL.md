@@ -57,8 +57,10 @@ S sway 60              (see WispParams)
 S strip_leds 60      an LED strip on the board: LEDs on it (0-300), the
 S strip_pattern sweep  pattern it shows while online (sweep, comet, converge,
 S strip_speed 30       breathe, wave, heartbeat, twinkle), its speed (1-100)
-S strip_width 8        and width (LEDs, 1-50); strip_identify 1 shows a
-S strip_identify 0     counting pattern instead
+S strip_width 8        and width (LEDs, 1-50), and its colours: each LED
+S strip_primary #0040ff  blends from the secondary (at rest; none means dark)
+S strip_secondary #5000a0  to the primary. strip_identify 1 shows a counting
+S strip_identify 0     pattern instead
 ```
 
 A board applies the keys it supports and ignores the rest, so a board without

@@ -35,8 +35,8 @@ interface Settings {
 type FormSection = Record<string, unknown>;
 
 /** [key, label, validator, description]; a validator of 'flag' is an on/off
- * switch, stored as a JSON boolean, and 'pattern' a choice from PATTERNS,
- * stored as its name. */
+ * switch, stored as a JSON boolean, 'pattern' a choice from PATTERNS, stored as
+ * its name, and 'color' a #rrggbb colour, stored as that string. */
 type Field = readonly [key: string, label: string, datatype: string, description?: string];
 
 /** A USB status board currently plugged in. */
@@ -72,6 +72,10 @@ const USES_WIDTH = [ 'sweep', 'comet', 'converge', 'wave' ];
 const STRIP: readonly Field[] = [
 	[ 'leds', _('LEDs on the strip'), 'range(0,300)' ],
 	[ 'pattern', _('Pattern'), 'pattern' ],
+	[ 'primary', _('Primary colour'), 'color',
+		_('The moving or pulsing part, as #rrggbb. Empty means the default blue, #0040ff.') ],
+	[ 'secondary', _('Secondary colour'), 'color',
+		_('Where the pattern is at rest, as #rrggbb; each LED blends between the two. Empty means none: the pattern fades from dark.') ],
 	[ 'speed', _('Speed'), 'range(1,100)' ],
 	[ 'width', _('Width (LEDs)'), 'range(1,50)' ],
 	[ 'identify', _('Identify LEDs'), 'flag',
@@ -142,7 +146,7 @@ function collect(section: FormSection): Entry | null {
 				if (v == '1')
 					group[k] = true;
 			}
-			else if (datatype == 'pattern') {
+			else if (datatype == 'pattern' || datatype == 'color') {
 				if (v)
 					group[k] = String(v);
 			}
@@ -165,6 +169,13 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 		if (datatype == 'flag') {
 			const o = s.taboption(tab, form.Flag, `${group}_${k}`, label, description ?? '');
 			o.rmempty = false;
+			continue;
+		}
+		if (datatype == 'color') {
+			const o = s.taboption(tab, form.Value, `${group}_${k}`, label, description ?? '');
+			o.placeholder = k == 'primary' ? '#0040ff' : _('none');
+			o.validate = (_section_id: string, value: string) =>
+				(!value || /^#[0-9a-fA-F]{6}$/.test(value)) ? true : _('Expecting a colour as #rrggbb');
 			continue;
 		}
 		if (datatype == 'pattern') {

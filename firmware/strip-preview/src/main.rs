@@ -7,12 +7,13 @@
 //!
 //! `--sheet <dir>` instead writes one space-time PNG per pattern (LEDs across,
 //! 10 s of frames downwards), which shows a pattern's motion in a single image.
-//! `--leds N` sets the strip length (default 60).
+//! `--leds N` sets the strip length (default 60); `--primary #rrggbb` and
+//! `--secondary #rrggbb` the colours.
 
 use std::time::Instant;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
-use strip::{Params, Pattern, Rgb, render};
+use strip::{Params, Pattern, Rgb, parse_color, render};
 
 const LED_PX: usize = 16;
 const FRAME_MS: u64 = 33;
@@ -21,24 +22,31 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let arg = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1));
     let leds: usize = arg("--leds").and_then(|v| v.parse().ok()).unwrap_or(60);
+    let mut params = Params::default();
+    let color = |name: &str| arg(name).map(|v| parse_color(v).unwrap_or_else(|| panic!("{name}: expected #rrggbb")));
+    if let Some(c) = color("--primary") {
+        params.primary = c;
+    }
+    if let Some(c) = color("--secondary") {
+        params.secondary = c;
+    }
 
     if let Some(dir) = arg("--sheet") {
-        sheets(dir, leds);
+        sheets(dir, leds, &params);
     } else {
-        window(leds);
+        window(leds, params);
     }
 }
 
-fn sheets(dir: &str, leds: usize) {
+fn sheets(dir: &str, leds: usize, params: &Params) {
     std::fs::create_dir_all(dir).expect("output folder");
-    let params = Params::default();
     let frames = (10_000 / FRAME_MS) as usize;
     let (w, row_h) = (leds * 8, 2);
     for pattern in Pattern::ALL {
         let mut img = vec![0u8; w * frames * row_h * 3];
         let mut px = vec![[0u8; 3]; leds];
         for f in 0..frames {
-            render(pattern, &params, f as u64 * FRAME_MS, &mut px);
+            render(pattern, params, f as u64 * FRAME_MS, &mut px);
             for y in f * row_h..(f + 1) * row_h {
                 for x in 0..w {
                     let o = (y * w + x) * 3;
@@ -55,14 +63,13 @@ fn sheets(dir: &str, leds: usize) {
     }
 }
 
-fn window(leds: usize) {
+fn window(leds: usize, mut params: Params) {
     let (w, h) = (leds * LED_PX, LED_PX * 3);
     let mut win = Window::new("strip preview", w, h, WindowOptions::default()).expect("window");
     win.set_target_fps(30);
     let mut buf = vec![0u32; w * h];
     let mut px = vec![[0u8; 3]; leds];
     let mut pattern = Pattern::Sweep;
-    let mut params = Params::default();
     let start = Instant::now();
     let report = |p: Pattern, q: &Params| println!("pattern {} speed {} width {}", p.name(), q.speed, q.width);
     report(pattern, &params);
