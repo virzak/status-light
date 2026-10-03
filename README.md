@@ -35,6 +35,9 @@ LED and its strip.
 - `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
   build and flash notes live in that directory.
 - `firmware/status-protocol/` - the `PROTOCOL.md` parser shared by the Rust boards.
+- `firmware/strip/` - the LED-strip patterns as a shared `no_std` crate, and
+  `firmware/strip-preview/`, a PC window (or, with `--sheet`, space-time PNGs) to
+  try them with the same code the board runs.
 - `firmware/router-flash.sh` - flashes a board through the router by its USB
   serial; used by each firmware's `push-router.sh`.
 - `firmware/flame/` - the blue-flame effects as a shared `no_std` crate, used by

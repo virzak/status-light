@@ -49,6 +49,11 @@ settings_for() {
   setting brightness brightness
   for k in $WISP_KEYS; do setting "$k" "wisps.$k"; done
   for k in $STRIP_KEYS; do setting "strip_$k" "strip.$k"; done
+  name_setting strip_pattern strip.pattern
+  name_setting strip_gradient strip.gradient
+  color_setting strip_primary strip.primary
+  color_setting strip_secondary strip.secondary
+  color_setting strip_background strip.background
 }
 
 # setting <key> <json path under the board>: one S line, if set and numeric (a
@@ -57,6 +62,22 @@ setting() {
   v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$2" 2>/dev/null)
   case "$v" in true) v=1 ;; false) v=0 ;; esac
   case "$v" in ''|*[!0-9]*) ;; *) echo "S $1 $v" ;; esac
+}
+
+# name_setting <key> <json path>: one S line for a value that is a name, such
+# as a pattern; only a plain lowercase word is passed, so nothing else can reach
+# the board.
+name_setting() {
+  v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$2" 2>/dev/null)
+  case "$v" in ''|*[!a-z_]*) ;; *) echo "S $1 $v" ;; esac
+}
+
+# color_setting <key> <json path>: one S line for a #rrggbb or #rgb colour,
+# passed only if it is exactly that.
+color_setting() {
+  v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$2" 2>/dev/null)
+  h='[0-9a-fA-F]'
+  case "$v" in \#$h$h$h$h$h$h|\#$h$h$h) echo "S $1 $v" ;; esac
 }
 
 send_settings() {

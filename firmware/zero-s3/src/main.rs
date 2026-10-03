@@ -2,10 +2,11 @@
 //!
 //! Reads the status protocol (see ../../PROTOCOL.md) from the router over USB
 //! serial and shows it on two WS2812 chains: the board's own LED (GPIO21) and an
-//! optional addressable strip (GPIO2). Online, the LED breathes blue and a soft
-//! blue glow sweeps back and forth along the strip; the other states are solid
-//! colours. `S` lines set the brightness, the strip's length, the sweep's speed
-//! and width, and a counting pattern for finding out how many LEDs a strip has.
+//! optional addressable strip (GPIO2). Online, the LED breathes blue and the
+//! strip shows a pattern from the shared `strip` crate (a glow sweeping end to
+//! end by default); the other states are solid colours. `S` lines set the
+//! brightness, the strip's length, its pattern, speed and width, and a counting
+//! pattern for finding out how many LEDs a strip has.
 //!
 //! Build and flash notes are in README.md.
 
@@ -26,6 +27,7 @@ use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
 use esp_hal_smartled::{RmtSmartLeds, buffer_size, color_order};
 use smart_leds_trait::{RGB8, SmartLedsWriteAsync};
 use status_protocol::{Command, Line, LineBuf, parse_line};
+use strip::{Params, Pattern};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -46,10 +48,6 @@ const FRAME_DT: Duration = Duration::from_millis(33);
 const BREATHE_MS: u64 = 4000;
 /// Offline flashes red: this long on, then this long off.
 const BLINK_MS: u64 = 500;
-
-/// Share of full brightness the strip keeps away from the sweep, so it reads as
-/// one lit strip with a moving highlight rather than a lone moving dot.
-const SWEEP_BASE: f32 = 0.08;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -103,10 +101,10 @@ struct Settings {
     brightness: u32,
     /// LEDs on the strip, 0 to STRIP_MAX.
     strip_leds: usize,
-    /// Sweep speed, 1 (slow) to 100 (fast).
-    speed: u32,
-    /// Half-width of the sweep's glow, in LEDs.
-    width: u32,
+    /// What the strip shows while online.
+    pattern: Pattern,
+    /// The pattern's speed, width and colours.
+    params: Params,
     /// Show the counting pattern on the strip instead of the status.
     identify: bool,
 }
@@ -116,8 +114,8 @@ impl Default for Settings {
         Self {
             brightness: 100,
             strip_leds: 60,
-            speed: 30,
-            width: 8,
+            pattern: Pattern::Sweep,
+            params: Params::default(),
             identify: false,
         }
     }
@@ -132,6 +130,30 @@ impl Settings {
             *self = Self::default();
             return;
         }
+        if is("strip_pattern") {
+            if let Some(p) = Pattern::from_name(value) {
+                self.pattern = p;
+            }
+            return;
+        }
+        if is("strip_gradient") {
+            if let Some(g) = strip::Gradient::from_name(value) {
+                self.params.gradient = g;
+            }
+            return;
+        }
+        if is("strip_primary") || is("strip_secondary") || is("strip_background") {
+            if let Some(c) = strip::parse_color(value) {
+                if is("strip_primary") {
+                    self.params.primary = c;
+                } else if is("strip_secondary") {
+                    self.params.secondary = Some(c);
+                } else {
+                    self.params.background = c;
+                }
+            }
+            return;
+        }
         let Ok(v) = value.parse::<u16>() else {
             return;
         };
@@ -140,9 +162,9 @@ impl Settings {
         } else if is("strip_leds") {
             self.strip_leds = usize::from(v).min(STRIP_MAX);
         } else if is("strip_speed") {
-            self.speed = u32::from(v.clamp(1, 100));
+            self.params.speed = u32::from(v.clamp(1, 100));
         } else if is("strip_width") {
-            self.width = u32::from(v.clamp(1, 50));
+            self.params.width = u32::from(v.clamp(1, 50));
         } else if is("strip_identify") {
             self.identify = v != 0;
         }
@@ -153,41 +175,14 @@ impl Settings {
         let s = |v: u8| (u32::from(v) * level * self.brightness / (255 * 100)) as u8;
         RGB8::new(s(c.r), s(c.g), s(c.b))
     }
-
-    /// One round trip of the sweep, in ms: about 20 s at speed 1, 5 s at the
-    /// default 30, 2 s at 100.
-    fn sweep_period_ms(&self) -> u64 {
-        200_000 / u64::from(self.speed + 9)
-    }
 }
 
 /// A slow breathing level, 0 to 1: a raised cosine, squared so the fade looks
 /// even to the eye.
 fn breathe(ms: u64) -> f32 {
     let phase = (ms % BREATHE_MS) as f32 / BREATHE_MS as f32;
-    let v = (1.0 - cos(2.0 * core::f32::consts::PI * phase)) / 2.0;
+    let v = (1.0 - strip::cos(2.0 * core::f32::consts::PI * phase)) / 2.0;
     v * v
-}
-
-/// The online strip: a soft glow sweeping from end to end and back, slowing at
-/// the ends like a pendulum, blue with a cyan core, over a faint blue base.
-fn sweep(settings: &Settings, ms: u64, px: &mut [RGB8]) {
-    let n = settings.strip_leds;
-    if n == 0 {
-        return;
-    }
-    let period = settings.sweep_period_ms();
-    let phase = (ms % period) as f32 / period as f32;
-    let pos = (n - 1) as f32 * (1.0 - cos(2.0 * core::f32::consts::PI * phase)) / 2.0;
-    let width = settings.width as f32;
-    for (i, p) in px.iter_mut().take(n).enumerate() {
-        let d = (i as f32 - pos) / width;
-        // A smooth bump that reaches zero at +/- width.
-        let glow = if d.abs() < 1.0 { (1.0 - d * d) * (1.0 - d * d) } else { 0.0 };
-        let v = SWEEP_BASE + (1.0 - SWEEP_BASE) * glow;
-        let core = glow * glow * glow;
-        *p = settings.scale(RGB8::new(0, (160.0 * core) as u8, (255.0 * v) as u8), STRIP_LEVEL);
-    }
 }
 
 /// The counting pattern, over every position the firmware can drive so a strip
@@ -202,20 +197,6 @@ fn identify(settings: &Settings, px: &mut [RGB8]) {
         };
         *p = settings.scale(c, STRIP_LEVEL);
     }
-}
-
-/// cos() without std or libm: a Taylor series near 0, after folding x into
-/// [-pi/2, pi/2]. Plenty for an LED fade.
-fn cos(x: f32) -> f32 {
-    use core::f32::consts::PI;
-    let mut x = x % (2.0 * PI);
-    if x > PI {
-        x -= 2.0 * PI;
-    }
-    // cos is even, and cos(x) = -cos(pi - x) keeps the series near 0.
-    let (x, sign) = if x.abs() > PI / 2.0 { (PI - x.abs(), -1.0) } else { (x, 1.0) };
-    let x2 = x * x;
-    sign * (1.0 - x2 / 2.0 + x2 * x2 / 24.0 - x2 * x2 * x2 / 720.0)
 }
 
 #[esp_rtos::main]
@@ -273,7 +254,12 @@ async fn main(_spawner: Spawner) -> ! {
                         settings.scale(c, LED_LEVEL)
                     }
                     None => {
-                        sweep(&settings, ms, &mut px);
+                        let n = settings.strip_leds;
+                        let mut full = [[0u8; 3]; STRIP_MAX];
+                        strip::render(settings.pattern, &settings.params, ms, &mut full[..n]);
+                        for (p, &[r, g, b]) in px.iter_mut().zip(&full[..n]) {
+                            *p = settings.scale(RGB8::new(r, g, b), STRIP_LEVEL);
+                        }
                         settings.scale(RGB8::new(0, 0, (255.0 * breathe(ms)) as u8), LED_LEVEL)
                     }
                 };

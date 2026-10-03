@@ -20,7 +20,7 @@ const USB = '/sys/bus/usb/devices';
 interface Entry {
 	name?: string;
 	brightness?: number;
-	strip?: Record<string, number | boolean>;
+	strip?: Record<string, number | boolean | string>;
 	wisps?: Record<string, number>;
 }
 
@@ -35,7 +35,8 @@ interface Settings {
 type FormSection = Record<string, unknown>;
 
 /** [key, label, validator, description]; a validator of 'flag' is an on/off
- * switch, stored as a JSON boolean. */
+ * switch, stored as a JSON boolean, 'choice' one of CHOICES[key], stored as its
+ * name, and 'color' a #rrggbb colour, stored as that string. */
 type Field = readonly [key: string, label: string, datatype: string, description?: string];
 
 /** A USB status board currently plugged in. */
@@ -54,11 +55,44 @@ const WISPS: readonly Field[] = [
 	[ 'width', _('Ribbon width'), 'range(0,100)' ]
 ];
 
+// What the strip can show while online (the strip crate's Pattern), and which
+// of them use the width setting.
+const PATTERNS: readonly [ name: string, label: string ][] = [
+	[ 'sweep', _('Sweep: a glow sliding end to end') ],
+	[ 'comet', _('Comet: a head with a fading tail') ],
+	[ 'converge', _('Converge: glows meeting in the middle') ],
+	[ 'breathe', _('Breathe: the whole strip fading in and out') ],
+	[ 'wave', _('Wave: a wave travelling along') ],
+	[ 'heartbeat', _('Heartbeat: a double pulse') ],
+	[ 'twinkle', _('Twinkle: LEDs sparkling at random') ]
+];
+const USES_WIDTH = [ 'sweep', 'comet', 'converge', 'wave' ];
+
+// How the primary turns into the secondary (the strip crate's Gradient).
+const GRADIENTS: readonly [ name: string, label: string ][] = [
+	[ 'hue', _('Through the hues: stays vivid (blue to yellow passes cyan and green)') ],
+	[ 'mix', _('Straight mix: blue to yellow passes grey') ]
+];
+
+// The dropdowns: their options, and what an empty choice means.
+const CHOICES: Record<string, { options: typeof PATTERNS, empty: string }> = {
+	pattern: { options: PATTERNS, empty: _('Default (sweep)') },
+	gradient: { options: GRADIENTS, empty: _('Default (through the hues)') }
+};
+
 // An addressable LED strip on a board.
 const STRIP: readonly Field[] = [
 	[ 'leds', _('LEDs on the strip'), 'range(0,300)' ],
-	[ 'speed', _('Sweep speed'), 'range(1,100)' ],
-	[ 'width', _('Glow width (LEDs)'), 'range(1,50)' ],
+	[ 'pattern', _('Pattern'), 'choice' ],
+	[ 'primary', _('Primary colour'), 'color',
+		_('The pattern at its head, centre or crest, as #rrggbb or #rgb. Empty means the default blue, #0040ff.') ],
+	[ 'secondary', _('Secondary colour'), 'color',
+		_('Where the pattern\'s gradient ends, as #rrggbb or #rgb: a comet\'s tail, a glow\'s edges, the far end of the strip. Empty keeps the whole pattern in the primary.') ],
+	[ 'gradient', _('Gradient'), 'choice' ],
+	[ 'background', _('Background colour'), 'color',
+		_('The LEDs outside the pattern, as #rrggbb or #rgb. Empty means black (off).') ],
+	[ 'speed', _('Speed'), 'range(1,100)' ],
+	[ 'width', _('Width (LEDs)'), 'range(1,50)' ],
 	[ 'identify', _('Identify LEDs'), 'flag',
 		_('Show a counting pattern instead of the status: the first LED green, every 10th red, the rest dim blue. Count them, enter the number above, then turn this off.') ]
 ];
@@ -118,13 +152,19 @@ function collect(section: FormSection): Entry | null {
 	if (brightness != null)
 		out.brightness = brightness;
 	for (const g of GROUP_NAMES) {
-		const group: Record<string, number | boolean> = {};
+		const group: Record<string, number | boolean | string> = {};
 		for (const [ k, , datatype ] of GROUPS[g]) {
 			const v = section[`${g}_${k}`];
-			// A switch is only written while on, so the file stays minimal.
+			// A switch is only written while on, and a choice only when one is
+			// made, so the file stays minimal.
 			if (datatype == 'flag') {
 				if (v == '1')
 					group[k] = true;
+			}
+			else if (datatype == 'choice' || datatype == 'color') {
+				const text = String(v ?? '').trim();
+				if (text)
+					group[k] = text;
 			}
 			else {
 				const n = num(v);
@@ -133,11 +173,60 @@ function collect(section: FormSection): Entry | null {
 			}
 		}
 		if (Object.keys(group).length)
-			out[g] = group as Record<string, number>;
+			Object.assign(out, { [g]: group });
 	}
 
 	return Object.keys(out).length ? out : null;
 }
+
+/** `#rrggbb` or `#rgb`, expanded to `#rrggbb` (the colour picker needs six
+ * digits); null if `v` is neither. */
+function longHex(v: string): string | null {
+	const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v.trim());
+	if (!m)
+		return null;
+	const hex = m[1].length == 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+	return `#${hex.toLowerCase()}`;
+}
+
+// A colour field: LuCI has no colour widget, so this is the usual text box
+// (typed hex, validated, empty meaning the default) with the browser's colour
+// picker beside it, kept in sync both ways. An empty field shows its default
+// colour faded.
+const ColorValue = form.Value.extend({
+	renderWidget(section_id: string, option_index: number, cfgvalue: unknown) {
+		const node = this.super('renderWidget', [ section_id, option_index, cfgvalue ]) as HTMLElement;
+		const text = node.querySelector('input') as HTMLInputElement;
+		const fallback = longHex(String(this.placeholder ?? '')) ?? '#000000';
+		const swatch = E('input', {
+			type: 'color',
+			title: _('Pick a colour'),
+			style: 'width:2.6em; height:2.2em; padding:0; border:0; background:none; cursor:pointer; flex:none'
+		}) as HTMLInputElement;
+
+		const show = () => {
+			const c = longHex(text.value);
+			swatch.value = c ?? fallback;
+			swatch.style.opacity = c ? '1' : '0.4';
+		};
+		swatch.addEventListener('input', () => {
+			text.value = swatch.value;
+			// The events LuCI's text field listens to, so it revalidates and
+			// the form sees the change.
+			text.dispatchEvent(new Event('keyup'));
+			text.dispatchEvent(new Event('change', { bubbles: true }));
+			show();
+		});
+		text.addEventListener('input', show);
+
+		node.style.display = 'flex';
+		node.style.alignItems = 'center';
+		node.style.gap = '.5em';
+		node.appendChild(swatch);
+		show();
+		return node;
+	}
+});
 
 // One field per key of GROUPS[group] on the given tab.
 function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: string, group: Group) {
@@ -147,9 +236,30 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 			o.rmempty = false;
 			continue;
 		}
+		if (datatype == 'color') {
+			const o = s.taboption(tab, ColorValue, `${group}_${k}`, label, description ?? '');
+			o.placeholder = ({ primary: '#0040ff', background: '#000000' } as Record<string, string>)[k] ?? _('none');
+			o.validate = (_section_id: string, value: string) =>
+				(!value || longHex(value)) ? true : _('Expecting a colour as #rrggbb or #rgb');
+			continue;
+		}
+		if (datatype == 'choice') {
+			const o = s.taboption(tab, form.ListValue, `${group}_${k}`, label);
+			o.value('', CHOICES[k].empty);
+			for (const [ name, text ] of CHOICES[k].options)
+				o.value(name, text);
+			// A gradient needs a secondary colour to run to.
+			if (k == 'gradient')
+				o.depends(`${group}_secondary`, /\S/);
+			continue;
+		}
 		const o = s.taboption(tab, form.Value, `${group}_${k}`, label);
 		o.datatype = datatype;
 		o.placeholder = _('default');
+		// Width only means something to some patterns; hide it for the rest.
+		if (group == 'strip' && k == 'width')
+			for (const name of [ '', ...USES_WIDTH ])
+				o.depends(`${group}_pattern`, name);
 	}
 }
 
@@ -201,7 +311,7 @@ export default view.extend({
 		boards.addremove = true;
 		boards.tab('general', _('General'));
 		boards.tab('flame', _('Flame'));
-		boards.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s, which shows a blue glow sweeping along it while online.'));
+		boards.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s. While online it shows the pattern below in your colours; otherwise it shows the status colour.'));
 
 		o = boards.taboption('general', form.Value, 'serial', _('USB serial number'));
 		o.rmempty = false;
