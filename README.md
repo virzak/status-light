@@ -120,10 +120,16 @@ scp -O router/status-light.json "$ROUTER:/tmp/" && ssh "$ROUTER" 'sudo sh -c "
 
 `luci/` adds Services > Status Light to the router's LuCI (port 8080 on the
 Flint 4): a form for the same file, with boards currently plugged in offered by
-serial number. Copy the files (only files, so existing directories keep their
-owner and permissions) onto the router and reload rpcd:
+serial number. The page is written in TypeScript (`luci-src/status-light.ts`), so
+build it first; that type-checks it against declarations for the router's LuCI
+(openwrt-25.12) from [luci-types](https://github.com/virzak/luci-types) and
+compiles it into `luci/www/luci-static/resources/view/status-light.js`. Then copy
+the files (only files, so existing directories keep their owner and permissions)
+onto the router and reload rpcd:
 
 ```
+pnpm install
+pnpm run luci
 (cd luci && tar cf - $(find . -type f)) | ssh "$ROUTER" 'sudo sh -c "tar xof - -C /
   rm -f /tmp/luci-indexcache*; rm -rf /tmp/luci-modulecache
   /etc/init.d/rpcd reload"'
@@ -131,14 +137,3 @@ owner and permissions) onto the router and reload rpcd:
 
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.
-
-The page is written in TypeScript, in `luci-src/status-light.ts`, and type-checked
-against declarations for the router's LuCI (openwrt-25.12) from
-[luci-types](https://github.com/virzak/luci-types). The `.js` under `luci/` is
-compiled from it and committed, so installing needs no build. After editing the
-`.ts`:
-
-```
-pnpm install
-pnpm run luci    # type-check, then compile into luci/www/.../view/status-light.js
-```
