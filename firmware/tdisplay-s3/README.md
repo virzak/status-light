@@ -97,6 +97,7 @@ Then, to build and flash in place:
 ROUTER=user@router firmware/tdisplay-s3/push-router.sh
 ```
 
-It builds release, copies the ELF and `router-flash.sh` to the router, and runs
+It builds release, copies the ELF and `../router-flash.sh` to the router, and runs
 the router-side script, which stops `netled`, flashes over the board's `ttyACM`,
-resets it, and restarts `netled`.
+resets it, and restarts `netled`. With more than one board on the router, pass
+this board's USB serial (as netled logs it) as `BOARD=...` or a second argument.
