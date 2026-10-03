@@ -89,6 +89,10 @@ const STRIP: readonly Field[] = [
 	[ 'secondary', _('Secondary colour'), 'color',
 		_('Where the pattern\'s gradient ends, as #rrggbb or #rgb: a comet\'s tail, a glow\'s edges, the far end of the strip. Empty keeps the whole pattern in the primary.') ],
 	[ 'gradient', _('Gradient'), 'choice' ],
+	[ 'balance', _('Balance'), 'range(0,100)',
+		_('How much of the pattern is primary: where along it the gradient is half way. 50 is the middle; higher keeps more of it primary.') ],
+	[ 'sharpness', _('Sharpness'), 'range(0,100)',
+		_('How abrupt the change is: 0 blends smoothly over the whole pattern, 100 makes a hard edge between the two colours.') ],
 	[ 'background', _('Background colour'), 'color',
 		_('The LEDs outside the pattern, as #rrggbb or #rgb. Empty means black (off).') ],
 	[ 'speed', _('Speed'), 'range(1,100)' ],
@@ -253,13 +257,16 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 				o.depends(`${group}_secondary`, /\S/);
 			continue;
 		}
-		const o = s.taboption(tab, form.Value, `${group}_${k}`, label);
+		const o = s.taboption(tab, form.Value, `${group}_${k}`, label, description ?? '');
 		o.datatype = datatype;
 		o.placeholder = _('default');
 		// Width only means something to some patterns; hide it for the rest.
 		if (group == 'strip' && k == 'width')
 			for (const name of [ '', ...USES_WIDTH ])
 				o.depends(`${group}_pattern`, name);
+		// Balance and sharpness shape a gradient, which needs a secondary colour.
+		if (group == 'strip' && (k == 'balance' || k == 'sharpness'))
+			o.depends(`${group}_secondary`, /\S/);
 	}
 }
 

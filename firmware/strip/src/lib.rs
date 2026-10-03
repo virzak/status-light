@@ -103,6 +103,12 @@ pub struct Params {
     pub secondary: Option<Rgb>,
     /// How the primary turns into the secondary.
     pub gradient: Gradient,
+    /// How much of the pattern is primary, 0 to 100: where along it the
+    /// gradient is half way (50, the default, is the middle).
+    pub balance: u32,
+    /// How abrupt the change is, 0 (a smooth gradient over the whole
+    /// pattern, the default) to 100 (a hard edge between two solid colours).
+    pub sharpness: u32,
     /// The LEDs outside the pattern; black (the default) leaves them off.
     pub background: Rgb,
 }
@@ -112,7 +118,7 @@ pub const DEFAULT_PRIMARY: Rgb = [0x00, 0x40, 0xff];
 
 impl Default for Params {
     fn default() -> Self {
-        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, gradient: Gradient::Hue, background: [0, 0, 0] }
+        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, gradient: Gradient::Hue, balance: 50, sharpness: 0, background: [0, 0, 0] }
     }
 }
 
@@ -188,13 +194,27 @@ pub fn render(pattern: Pattern, params: &Params, ms: u64, px: &mut [Rgb]) {
             // Each sparkle keeps its own fixed place on the gradient.
             Pattern::Twinkle => (twinkle(i, ms, params), unit(hash(i as u32).rotate_left(8))),
         };
+        let toward = shape(place, params.balance, params.sharpness);
         let color = match (params.secondary, params.gradient) {
-            (Some(secondary), Gradient::Hue) => blend_hue(params.primary, secondary, place),
-            (Some(secondary), Gradient::Mix) => blend(params.primary, secondary, place),
+            (Some(secondary), Gradient::Hue) => blend_hue(params.primary, secondary, toward),
+            (Some(secondary), Gradient::Mix) => blend(params.primary, secondary, toward),
             (None, _) => params.primary,
         };
         *p = blend(params.background, color, glow);
     }
+}
+
+/// How far a place within the pattern (0 to 1) is toward the secondary colour.
+/// Balance moves the half-way point along the pattern, like a gradient's
+/// midpoint in an image editor (the ends stay put); sharpness then narrows the
+/// blend around that point, down to a step at 100. At the defaults (50, 0) the
+/// place passes through unchanged.
+fn shape(place: f32, balance: u32, sharpness: u32) -> f32 {
+    let t = place.clamp(0.0, 1.0);
+    let mid = (balance.min(100) as f32 / 100.0).clamp(0.01, 0.99);
+    let u = if t < mid { 0.5 * t / mid } else { 0.5 + 0.5 * (t - mid) / (1.0 - mid) };
+    let width = (1.0 - sharpness.min(100) as f32 / 100.0).max(0.01);
+    ((u - 0.5) / width + 0.5).clamp(0.0, 1.0)
 }
 
 /// From `from` at 0 to `to` at 1.
@@ -426,6 +446,23 @@ mod tests {
         assert!(pink[0] == 255 && pink[1] == pink[2] && pink[1] > 100, "red to white {pink:?}");
         assert_eq!(Gradient::from_name("MIX"), Some(Gradient::Mix));
         assert_eq!(Gradient::from_name("rainbow"), None);
+    }
+
+    #[test]
+    fn gradient_shape() {
+        // The defaults change nothing.
+        for k in 0..=20 {
+            let t = k as f32 / 20.0;
+            assert!((shape(t, 50, 0) - t).abs() < 1e-6, "{t}");
+        }
+        // Balance moves the half-way point; the ends stay put.
+        assert!((shape(0.8, 80, 0) - 0.5).abs() < 1e-6);
+        assert_eq!((shape(0.0, 80, 0), shape(1.0, 80, 0)), (0.0, 1.0));
+        assert!(shape(0.5, 80, 0) < 0.5, "more primary at balance 80");
+        // Full sharpness is a step at the balance point.
+        assert_eq!((shape(0.69, 70, 100), shape(0.71, 70, 100)), (0.0, 1.0));
+        // In between, sharper means a steeper change around the midpoint.
+        assert!(shape(0.6, 50, 60) > shape(0.6, 50, 0));
     }
 
     #[test]

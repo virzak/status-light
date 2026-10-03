@@ -101,6 +101,20 @@
           ],
           "default": "hue"
         },
+        "balance": {
+          "description": "How much of the pattern is primary, 0-100: where along it the gradient is half way. 50 is the middle; higher keeps more of the pattern primary.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 50
+        },
+        "sharpness": {
+          "description": "How abrupt the change from primary to secondary is, 0-100: 0 is a smooth gradient over the whole pattern, 100 a hard edge between two solid colours.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0
+        },
         "background": {
           "description": "The colour of the LEDs outside the pattern, as #rrggbb or #rgb. Black (off) by default.",
           "type": "string",
