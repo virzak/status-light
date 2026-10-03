@@ -14,7 +14,19 @@ const FILE = '/etc/status-light.json';
 const SCHEMA = 'https://raw.githubusercontent.com/virzak/status-light/master/settings.schema.json';
 const USB = '/sys/bus/usb/devices';
 
-// [key, label, validator] for the flame parameters (FlameParams).
+// [key, label, validator] for the wisp parameters (WispParams), the flame the
+// LCDs show.
+const WISPS = [
+	[ 'strands', _('Ribbons'), 'range(1,64)' ],
+	[ 'height', _('Height (% of the screen)'), 'range(10,100)' ],
+	[ 'sway', _('Sway'), 'range(0,100)' ],
+	[ 'speed', _('Speed'), 'range(0,100)' ],
+	[ 'glow', _('Glow'), 'range(0,100)' ],
+	[ 'width', _('Ribbon width'), 'range(0,100)' ]
+];
+
+// The heat-field flame (FlameParams), for displays that sample it rather than
+// show ribbons. Not on this page, but kept through a save.
 const FLAME = [
 	[ 'cooling', _('Cooling'), 'range(0,20)' ],
 	[ 'drift', _('Drift'), 'range(0,3)' ],
@@ -41,16 +53,20 @@ function presentBoards() {
 	)).then((boards) => boards.filter(Boolean));
 }
 
-// { brightness, flame: { cooling } } -> { brightness, flame_cooling } for the form.
+// Nested objects in a board or LCD entry and their keys.
+const GROUPS = { wisps: WISPS, flame: FLAME };
+
+// { brightness, wisps: { sway } } -> { brightness, wisps_sway } for the form.
 function flatten(obj) {
 	const out = {};
 	if (L.isObject(obj)) {
 		for (const k in obj)
-			if (k != 'flame' && obj[k] != null)
+			if (!(k in GROUPS) && obj[k] != null)
 				out[k] = obj[k];
-		for (const [ k ] of FLAME)
-			if (L.isObject(obj.flame) && obj.flame[k] != null)
-				out[`flame_${k}`] = obj.flame[k];
+		for (const g in GROUPS)
+			for (const [ k ] of GROUPS[g])
+				if (L.isObject(obj[g]) && obj[g][k] != null)
+					out[`${g}_${k}`] = obj[g][k];
 	}
 	return out;
 }
@@ -59,25 +75,27 @@ function flatten(obj) {
 // built-in defaults. Returns null when nothing is set.
 function collect(section) {
 	const out = {};
-	const flame = {};
 	const num = (v) => (v != null && v !== '') ? parseInt(v, 10) : null;
 
 	if (section.name != null && section.name !== '')
 		out.name = String(section.name);
 	if (num(section.brightness) != null)
 		out.brightness = num(section.brightness);
-	for (const [ k ] of FLAME)
-		if (num(section[`flame_${k}`]) != null)
-			flame[k] = num(section[`flame_${k}`]);
-	if (Object.keys(flame).length)
-		out.flame = flame;
+	for (const g in GROUPS) {
+		const group = {};
+		for (const [ k ] of GROUPS[g])
+			if (num(section[`${g}_${k}`]) != null)
+				group[k] = num(section[`${g}_${k}`]);
+		if (Object.keys(group).length)
+			out[g] = group;
+	}
 
 	return Object.keys(out).length ? out : null;
 }
 
 function addFlameOptions(s) {
-	for (const [ k, label, datatype ] of FLAME) {
-		const o = s.taboption('flame', form.Value, `flame_${k}`, label);
+	for (const [ k, label, datatype ] of WISPS) {
+		const o = s.taboption('flame', form.Value, `wisps_${k}`, label);
 		o.datatype = datatype;
 		o.placeholder = _('default');
 	}

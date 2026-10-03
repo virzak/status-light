@@ -29,7 +29,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use embedded_graphics_core::pixelcolor::raw::{RawData, RawU16};
 use embedded_graphics_core::pixelcolor::{Rgb565, RgbColor};
-use flame::{Flame, FlameParams};
+use flame::wisps::{WispParams, Wisps};
 use serde::Deserialize;
 
 /// Physical framebuffer (portrait).
@@ -144,41 +144,33 @@ struct Settings {
 #[serde(default)]
 struct LcdSettings {
     brightness: Option<u8>,
-    flame: FlameSettings,
+    wisps: WispSettings,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
-struct FlameSettings {
-    cooling: Option<u8>,
-    drift: Option<u8>,
-    flicker: Option<u8>,
-    seed_min: Option<u8>,
-    seed_max: Option<u8>,
-    blue_full: Option<u8>,
-    green_start: Option<u8>,
-    white_start: Option<u8>,
+struct WispSettings {
+    strands: Option<u8>,
+    height: Option<u8>,
+    sway: Option<u8>,
+    speed: Option<u8>,
+    glow: Option<u8>,
+    width: Option<u8>,
 }
 
 impl LcdSettings {
-    /// This screen's flame: the shared defaults with cooling 1 (it lights about
-    /// the bottom two thirds of the 240-row landscape image), then any
-    /// overrides from the settings file.
-    fn flame_params(&self) -> FlameParams {
-        let f = &self.flame;
-        let d = FlameParams {
-            cooling: 1,
-            ..FlameParams::default()
-        };
-        FlameParams {
-            cooling: f.cooling.unwrap_or(d.cooling),
-            drift: f.drift.unwrap_or(d.drift).min(3),
-            flicker: f.flicker.unwrap_or(d.flicker).max(1),
-            seed_min: f.seed_min.unwrap_or(d.seed_min),
-            seed_max: f.seed_max.unwrap_or(d.seed_max),
-            blue_full: f.blue_full.unwrap_or(d.blue_full).max(1),
-            green_start: f.green_start.unwrap_or(d.green_start),
-            white_start: f.white_start.unwrap_or(d.white_start),
+    /// This screen's flame: the shared defaults (they scale with the screen
+    /// height), then any overrides from the settings file.
+    fn wisp_params(&self) -> WispParams {
+        let f = &self.wisps;
+        let d = WispParams::default();
+        WispParams {
+            strands: f.strands.unwrap_or(d.strands).clamp(1, 64),
+            height: f.height.unwrap_or(d.height).clamp(10, 100),
+            sway: f.sway.unwrap_or(d.sway).min(100),
+            speed: f.speed.unwrap_or(d.speed).min(100),
+            glow: f.glow.unwrap_or(d.glow).min(100),
+            width: f.width.unwrap_or(d.width).min(100),
         }
     }
 
@@ -246,12 +238,10 @@ fn main() {
         gl_screen("start");
     }
 
-    // The default cooling suits the 170-row T-Display; on this 240-row
-    // landscape image, 1 lights about the bottom two thirds.
     let mut settings_seen = settings_mtime();
     let mut settings = load_settings(None);
-    let mut fl = Flame::new(W, H, settings.flame_params(), 0xC0FF_EE11);
-    let mut heat = vec![0u8; W * H];
+    let mut fl = Wisps::new(W, H, settings.wisp_params(), 0xC0FF_EE11);
+    let mut last_frame = Instant::now();
     let mut px = vec![Rgb565::BLACK; W * H];
     let mut bytes = vec![0u8; FB_W * FB_H * 2];
     let mut readback = vec![0u8; FB_W * FB_H * 2];
@@ -285,7 +275,7 @@ fn main() {
             if resume {
                 wake_panel();
                 set_brightness(settings.brightness());
-                fl.reset(&mut heat);
+                fl.reset();
                 last_static = None;
                 gl = None;
             } else {
@@ -304,15 +294,15 @@ fn main() {
             if mtime != settings_seen {
                 settings_seen = mtime;
                 settings = load_settings(Some(settings));
-                fl.set_params(settings.flame_params());
+                fl.set_params(settings.wisp_params());
                 // Only while the flame shows; gl_screen owns it otherwise.
                 set_brightness(settings.brightness());
             }
             let s = read_state();
             if s != state {
                 if s == State::Online {
-                    // Start the fire cold so it grows in.
-                    fl.reset(&mut heat);
+                    // Start the flame over so it grows in.
+                    fl.reset();
                 }
                 state = s;
             }
@@ -321,8 +311,9 @@ fn main() {
 
         let draw = match state {
             State::Online => {
-                fl.step(&mut heat);
-                fl.render(&heat, &mut px);
+                fl.step((t - last_frame).as_millis() as u32);
+                last_frame = t;
+                fl.render(&mut px);
                 last_static = None;
                 true
             }
@@ -347,7 +338,11 @@ fn main() {
             for y in 0..H {
                 for x in 0..W {
                     let c = px[y * W + x];
-                    let c = if bgr { Rgb565::new(c.b(), c.g(), c.r()) } else { c };
+                    let c = if bgr {
+                        Rgb565::new(c.b(), c.g(), c.r())
+                    } else {
+                        c
+                    };
                     // Landscape (x, y) to portrait framebuffer: 90 degrees
                     // clockwise on the mounted panel, or 270 with --flip.
                     let (fx, fy) = if flip {

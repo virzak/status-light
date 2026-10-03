@@ -31,17 +31,24 @@ write_fd() { eval "echo \"\$2\" >&$1" 2>/dev/null; }
 # board gets "S reset" and then its own values, numeric ones only, so a typo in
 # the file cannot inject a command.
 SETTINGS_FILE=/etc/status-light.json
+# Wisps are the flame the LCD board shows; the heat-field flame keys are for
+# displays that sample it instead.
+WISP_KEYS="strands height sway speed glow width"
 FLAME_KEYS="cooling drift flicker seed_min seed_max blue_full green_start white_start"
 
 settings_for() {
   ser=$1
   echo "S reset"
   [ -n "$ser" ] && [ -f "$SETTINGS_FILE" ] || return 0
-  for k in brightness $FLAME_KEYS; do
-    case "$k" in brightness) path=$k ;; *) path=flame.$k ;; esac
-    v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$path" 2>/dev/null)
-    case "$v" in ''|*[!0-9]*) ;; *) echo "S $k $v" ;; esac
-  done
+  setting brightness brightness
+  for k in $WISP_KEYS; do setting "$k" "wisps.$k"; done
+  for k in $FLAME_KEYS; do setting "$k" "flame.$k"; done
+}
+
+# setting <key> <json path under the board>: one S line, if set and numeric.
+setting() {
+  v=$(jsonfilter -i "$SETTINGS_FILE" -e "@.boards[\"$ser\"].$2" 2>/dev/null)
+  case "$v" in ''|*[!0-9]*) ;; *) echo "S $1 $v" ;; esac
 }
 
 send_settings() {

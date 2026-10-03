@@ -21,6 +21,9 @@
           "maximum": 100,
           "default": 80
         },
+        "wisps": {
+          "$ref": "#/definitions/wisps"
+        },
         "flame": {
           "$ref": "#/definitions/flame"
         }
@@ -44,6 +47,9 @@
             "maximum": 100,
             "default": 100
           },
+          "wisps": {
+            "$ref": "#/definitions/wisps"
+          },
           "flame": {
             "$ref": "#/definitions/flame"
           }
@@ -52,8 +58,57 @@
     }
   },
   "definitions": {
+    "wisps": {
+      "description": "The flame the LCDs show: glowing ribbons (WispParams in firmware/flame). Omitted keys keep the defaults.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strands": {
+          "description": "Number of ribbons. More is denser but slower to draw; the T-Display holds about 25 fps at the default 48.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "default": 48
+        },
+        "height": {
+          "description": "Height of the tallest ribbons, in percent of the screen height.",
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 100,
+          "default": 90
+        },
+        "sway": {
+          "description": "How far the ribbons swing sideways, 0 (straight) to 100.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 50
+        },
+        "speed": {
+          "description": "Animation speed; 50 is normal, 100 twice as fast.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 50
+        },
+        "glow": {
+          "description": "Brightness of the glow; 50 is normal, 100 twice as bright.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 50
+        },
+        "width": {
+          "description": "Ribbon width; 50 is normal, 0 draws single lines.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 50
+        }
+      }
+    },
     "flame": {
-      "description": "Flame tuning (FlameParams in firmware/flame). Omitted keys keep the defaults.",
+      "description": "The heat-field flame (FlameParams in firmware/flame), for displays that sample it rather than show ribbons. The LCDs show wisps instead. Omitted keys keep the defaults.",
       "type": "object",
       "additionalProperties": false,
       "properties": {

@@ -50,8 +50,11 @@ with `S reset`:
 ```
 S reset              restore the built-in defaults; the values below follow
 S brightness 40      percent, 0-100
-S cooling 2          flame tuning: cooling, drift, flicker, seed_min, seed_max,
-S drift 3              blue_full, green_start, white_start (see FlameParams)
+S strands 40         wisp flame: strands, height, sway, speed, glow, width
+S sway 60              (see WispParams)
+S cooling 2          heat-field flame: cooling, drift, flicker, seed_min,
+S drift 3              seed_max, blue_full, green_start, white_start
+                       (see FlameParams)
 ```
 
 A board applies the keys it supports and ignores the rest, so a board without

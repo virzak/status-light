@@ -9,6 +9,7 @@ description = "PC preview and tuner for the shared blue-flame effect"
 flame = { path = "../flame" }
 embedded-graphics-core = "0.4.0"
 minifb = "0.28"
+png = "0.17"
 
 [profile.release]
 opt-level = 3

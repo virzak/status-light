@@ -33,8 +33,9 @@ The table below is the WS2812 board's rendering.
   `board-push.sh` to update it through the router (see below).
 - `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
   build and flash notes live in that directory.
-- `firmware/flame/` - the blue-flame effect as a shared `no_std` crate, used by
-  the LCD firmware and the PC preview so both run identical code.
+- `firmware/flame/` - the blue-flame effects as a shared `no_std` crate, used by
+  the LCD firmwares and the PC preview so all run identical code: `wisps`
+  (glowing ribbons, what the LCDs show) and a heat-field flame.
 - `firmware/flame-preview/` - a PC window that runs the flame for live tuning.
 
 ## Flashing the WS2812 board (MicroPython)
@@ -105,17 +106,17 @@ also restores the stock screen.
 ## Settings
 
 Settings live on the router in `/etc/status-light.json`, described by
-`settings.schema.json`: the LCD's brightness and flame, and per-board brightness
-and flame keyed by each board's USB serial number. Every key is optional. With
+`settings.schema.json`: the LCD's brightness and flame (`wisps`), and per-board
+brightness and flame keyed by each board's USB serial number. Every key is optional. With
 `"$schema"` set (as in `router/status-light.json`), VS Code validates the file and
 documents each key on hover.
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/virzak/status-light/master/settings.schema.json",
-  "lcd": { "brightness": 60, "flame": { "cooling": 1 } },
+  "lcd": { "brightness": 60, "wisps": { "strands": 56 } },
   "boards": {
-    "A0:F2:62:E1:35:58": { "name": "tdisplay", "brightness": 40, "flame": { "cooling": 3 } }
+    "A0:F2:62:E1:35:58": { "name": "tdisplay", "brightness": 40, "wisps": { "sway": 70 } }
   }
 }
 ```
