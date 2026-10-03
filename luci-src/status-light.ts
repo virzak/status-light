@@ -245,7 +245,7 @@ export default view.extend({
 		boards.addremove = true;
 		boards.tab('general', _('General'));
 		boards.tab('flame', _('Flame'));
-		boards.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s, which shows a blue glow sweeping along it while online.'));
+		boards.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s. While online it shows the pattern below in your colours; otherwise it shows the status colour.'));
 
 		o = boards.taboption('general', form.Value, 'serial', _('USB serial number'));
 		o.rmempty = false;
