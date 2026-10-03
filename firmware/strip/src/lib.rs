@@ -65,6 +65,29 @@ impl Pattern {
     }
 }
 
+/// How the gradient from the primary to the secondary colour is drawn.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gradient {
+    /// Round the colour wheel the short way, keeping colours vivid: blue to
+    /// yellow passes cyan and green.
+    Hue,
+    /// A straight mix of the two: blue to yellow passes grey.
+    Mix,
+}
+
+impl Gradient {
+    pub fn name(self) -> &'static str {
+        match self {
+            Gradient::Hue => "hue",
+            Gradient::Mix => "mix",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Gradient> {
+        [Gradient::Hue, Gradient::Mix].into_iter().find(|g| g.name().eq_ignore_ascii_case(name))
+    }
+}
+
 /// Tuning shared by the patterns; each uses what applies to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Params {
@@ -78,6 +101,8 @@ pub struct Params {
     /// Where the pattern's gradient ends: its tail or edges. `None` keeps the
     /// whole pattern in the primary.
     pub secondary: Option<Rgb>,
+    /// How the primary turns into the secondary.
+    pub gradient: Gradient,
     /// The LEDs outside the pattern; black (the default) leaves them off.
     pub background: Rgb,
 }
@@ -87,7 +112,7 @@ pub const DEFAULT_PRIMARY: Rgb = [0x00, 0x40, 0xff];
 
 impl Default for Params {
     fn default() -> Self {
-        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, background: [0, 0, 0] }
+        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, gradient: Gradient::Hue, background: [0, 0, 0] }
     }
 }
 
@@ -163,9 +188,10 @@ pub fn render(pattern: Pattern, params: &Params, ms: u64, px: &mut [Rgb]) {
             // Each sparkle keeps its own fixed place on the gradient.
             Pattern::Twinkle => (twinkle(i, ms, params), unit(hash(i as u32).rotate_left(8))),
         };
-        let color = match params.secondary {
-            Some(secondary) => blend(params.primary, secondary, place),
-            None => params.primary,
+        let color = match (params.secondary, params.gradient) {
+            (Some(secondary), Gradient::Hue) => blend_hue(params.primary, secondary, place),
+            (Some(secondary), Gradient::Mix) => blend(params.primary, secondary, place),
+            (None, _) => params.primary,
         };
         *p = blend(params.background, color, glow);
     }
@@ -176,6 +202,63 @@ fn blend(from: Rgb, to: Rgb, amount: f32) -> Rgb {
     let v = amount.clamp(0.0, 1.0);
     let mix = |a: u8, b: u8| (f32::from(a) + (f32::from(b) - f32::from(a)) * v + 0.5) as u8;
     [mix(from[0], to[0]), mix(from[1], to[1]), mix(from[2], to[2])]
+}
+
+/// From `from` at 0 to `to` at 1 round the colour wheel the short way, with
+/// saturation and brightness changing linearly, so a gradient between distant
+/// hues stays vivid. A grey end has no hue of its own and takes the other's.
+fn blend_hue(from: Rgb, to: Rgb, amount: f32) -> Rgb {
+    let v = amount.clamp(0.0, 1.0);
+    let (h0, s0, v0) = to_hsv(from);
+    let (h1, s1, v1) = to_hsv(to);
+    let (h0, h1) = match (s0 > 0.0, s1 > 0.0) {
+        (false, true) => (h1, h1),
+        (true, false) => (h0, h0),
+        _ => (h0, h1),
+    };
+    // The shorter way round: a difference of more than half a turn goes the
+    // other way.
+    let mut dh = h1 - h0;
+    if dh > 180.0 {
+        dh -= 360.0;
+    } else if dh < -180.0 {
+        dh += 360.0;
+    }
+    from_hsv((h0 + dh * v + 360.0) % 360.0, s0 + (s1 - s0) * v, v0 + (v1 - v0) * v)
+}
+
+/// RGB to (hue in degrees, saturation 0-1, value 0-1).
+fn to_hsv(c: Rgb) -> (f32, f32, f32) {
+    let [r, g, b] = c.map(|x| f32::from(x) / 255.0);
+    let max = r.max(g).max(b);
+    let d = max - r.min(g).min(b);
+    let h = if d == 0.0 {
+        0.0
+    } else if max == r {
+        60.0 * (((g - b) / d) % 6.0)
+    } else if max == g {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    (if h < 0.0 { h + 360.0 } else { h }, if max == 0.0 { 0.0 } else { d / max }, max)
+}
+
+fn from_hsv(h: f32, s: f32, v: f32) -> Rgb {
+    let c = v * s;
+    let hp = h / 60.0;
+    let x = c * (1.0 - ((hp % 2.0) - 1.0).abs());
+    let (r, g, b) = match hp as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    let byte = |u: f32| ((u + m) * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+    [byte(r), byte(g), byte(b)]
 }
 
 /// Parse `#rrggbb`, or the short `#rgb` where each digit doubles (`#f80` is
@@ -324,6 +407,25 @@ mod tests {
                 assert!(px.iter().filter(|&&c| c == background).count() > 20, "{p:?} on {background:?}");
             }
         }
+    }
+
+    #[test]
+    fn hue_gradient_stays_vivid() {
+        let (blue, yellow) = ([0x00, 0x40, 0xff], [0xff, 0xff, 0x00]);
+        // Both ends come back as given.
+        assert_eq!(blend_hue(blue, yellow, 0.0), blue);
+        assert_eq!(blend_hue(blue, yellow, 1.0), yellow);
+        // Half way is a saturated green-cyan, where a straight mix is grey.
+        let hue_mid = blend_hue(blue, yellow, 0.5);
+        let mix_mid = blend(blue, yellow, 0.5);
+        let spread = |c: Rgb| c.iter().max().unwrap() - c.iter().min().unwrap();
+        assert!(hue_mid[1] > 200 && spread(hue_mid) > 150, "hue midpoint {hue_mid:?}");
+        assert!(spread(mix_mid) < 100, "mix midpoint {mix_mid:?}");
+        // Red to white keeps red's hue and loses saturation: pink, not a rainbow.
+        let pink = blend_hue([255, 0, 0], [255, 255, 255], 0.5);
+        assert!(pink[0] == 255 && pink[1] == pink[2] && pink[1] > 100, "red to white {pink:?}");
+        assert_eq!(Gradient::from_name("MIX"), Some(Gradient::Mix));
+        assert_eq!(Gradient::from_name("rainbow"), None);
     }
 
     #[test]

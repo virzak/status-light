@@ -35,8 +35,8 @@ interface Settings {
 type FormSection = Record<string, unknown>;
 
 /** [key, label, validator, description]; a validator of 'flag' is an on/off
- * switch, stored as a JSON boolean, 'pattern' a choice from PATTERNS, stored as
- * its name, and 'color' a #rrggbb colour, stored as that string. */
+ * switch, stored as a JSON boolean, 'choice' one of CHOICES[key], stored as its
+ * name, and 'color' a #rrggbb colour, stored as that string. */
 type Field = readonly [key: string, label: string, datatype: string, description?: string];
 
 /** A USB status board currently plugged in. */
@@ -68,14 +68,27 @@ const PATTERNS: readonly [ name: string, label: string ][] = [
 ];
 const USES_WIDTH = [ 'sweep', 'comet', 'converge', 'wave' ];
 
+// How the primary turns into the secondary (the strip crate's Gradient).
+const GRADIENTS: readonly [ name: string, label: string ][] = [
+	[ 'hue', _('Through the hues: stays vivid (blue to yellow passes cyan and green)') ],
+	[ 'mix', _('Straight mix: blue to yellow passes grey') ]
+];
+
+// The dropdowns: their options, and what an empty choice means.
+const CHOICES: Record<string, { options: typeof PATTERNS, empty: string }> = {
+	pattern: { options: PATTERNS, empty: _('Default (sweep)') },
+	gradient: { options: GRADIENTS, empty: _('Default (through the hues)') }
+};
+
 // An addressable LED strip on a board.
 const STRIP: readonly Field[] = [
 	[ 'leds', _('LEDs on the strip'), 'range(0,300)' ],
-	[ 'pattern', _('Pattern'), 'pattern' ],
+	[ 'pattern', _('Pattern'), 'choice' ],
 	[ 'primary', _('Primary colour'), 'color',
 		_('The pattern at its head, centre or crest, as #rrggbb or #rgb. Empty means the default blue, #0040ff.') ],
 	[ 'secondary', _('Secondary colour'), 'color',
 		_('Where the pattern\'s gradient ends, as #rrggbb or #rgb: a comet\'s tail, a glow\'s edges, the far end of the strip. Empty keeps the whole pattern in the primary.') ],
+	[ 'gradient', _('Gradient'), 'choice' ],
 	[ 'background', _('Background colour'), 'color',
 		_('The LEDs outside the pattern, as #rrggbb or #rgb. Empty means black (off).') ],
 	[ 'speed', _('Speed'), 'range(1,100)' ],
@@ -148,7 +161,7 @@ function collect(section: FormSection): Entry | null {
 				if (v == '1')
 					group[k] = true;
 			}
-			else if (datatype == 'pattern' || datatype == 'color') {
+			else if (datatype == 'choice' || datatype == 'color') {
 				const text = String(v ?? '').trim();
 				if (text)
 					group[k] = text;
@@ -230,11 +243,14 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 				(!value || longHex(value)) ? true : _('Expecting a colour as #rrggbb or #rgb');
 			continue;
 		}
-		if (datatype == 'pattern') {
+		if (datatype == 'choice') {
 			const o = s.taboption(tab, form.ListValue, `${group}_${k}`, label);
-			o.value('', _('Default (sweep)'));
-			for (const [ name, text ] of PATTERNS)
+			o.value('', CHOICES[k].empty);
+			for (const [ name, text ] of CHOICES[k].options)
 				o.value(name, text);
+			// A gradient needs a secondary colour to run to.
+			if (k == 'gradient')
+				o.depends(`${group}_secondary`, /\S/);
 			continue;
 		}
 		const o = s.taboption(tab, form.Value, `${group}_${k}`, label);

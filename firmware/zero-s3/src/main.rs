@@ -136,6 +136,12 @@ impl Settings {
             }
             return;
         }
+        if is("strip_gradient") {
+            if let Some(g) = strip::Gradient::from_name(value) {
+                self.params.gradient = g;
+            }
+            return;
+        }
         if is("strip_primary") || is("strip_secondary") || is("strip_background") {
             if let Some(c) = strip::parse_color(value) {
                 if is("strip_primary") {

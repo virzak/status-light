@@ -8,7 +8,8 @@
 //! `--sheet <dir>` instead writes one space-time PNG per pattern (LEDs across,
 //! 10 s of frames downwards), which shows a pattern's motion in a single image.
 //! `--leds N` sets the strip length (default 60); `--primary`, `--secondary`
-//! and `--background`, each `#rrggbb`, the colours.
+//! and `--background`, each `#rrggbb`, the colours, and `--gradient hue|mix`
+//! how the primary turns into the secondary.
 
 use std::time::Instant;
 
@@ -28,6 +29,9 @@ fn main() {
         params.primary = c;
     }
     params.secondary = color("--secondary");
+    if let Some(g) = arg("--gradient") {
+        params.gradient = strip::Gradient::from_name(g).expect("--gradient: hue or mix");
+    }
     if let Some(c) = color("--background") {
         params.background = c;
     }

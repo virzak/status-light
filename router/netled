@@ -50,6 +50,7 @@ settings_for() {
   for k in $WISP_KEYS; do setting "$k" "wisps.$k"; done
   for k in $STRIP_KEYS; do setting "strip_$k" "strip.$k"; done
   name_setting strip_pattern strip.pattern
+  name_setting strip_gradient strip.gradient
   color_setting strip_primary strip.primary
   color_setting strip_secondary strip.secondary
   color_setting strip_background strip.background

@@ -62,6 +62,8 @@ S strip_width 8               width in LEDs, 1-50
 S strip_primary #ff2000       colours, #rrggbb or #rgb: a gradient from the primary
 S strip_secondary #ffd000       (head, centre) to the secondary (tail, edges),
 S strip_background #000830      over the background (outside the pattern)
+S strip_gradient hue          primary to secondary round the hues (hue, default)
+                                or as a straight mix (mix)
 S strip_identify 1            show a counting pattern instead of the status
 ```
 

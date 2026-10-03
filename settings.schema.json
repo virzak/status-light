@@ -92,6 +92,15 @@
           "type": "string",
           "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
         },
+        "gradient": {
+          "description": "How the primary turns into the secondary: hue goes round the colour wheel the short way and stays vivid (blue to yellow passes cyan and green); mix blends them straight (blue to yellow passes grey).",
+          "type": "string",
+          "enum": [
+            "hue",
+            "mix"
+          ],
+          "default": "hue"
+        },
         "background": {
           "description": "The colour of the LEDs outside the pattern, as #rrggbb or #rgb. Black (off) by default.",
           "type": "string",
