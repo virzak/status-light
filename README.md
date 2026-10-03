@@ -131,3 +131,14 @@ owner and permissions) onto the router and reload rpcd:
 
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.
+
+The page is written in TypeScript, in `luci-src/status-light.ts`, and type-checked
+against declarations for the router's LuCI (openwrt-25.12) from
+[luci-types](https://github.com/virzak/luci-types). The `.js` under `luci/` is
+compiled from it and committed, so installing needs no build. After editing the
+`.ts`:
+
+```
+pnpm install
+pnpm run luci    # type-check, then compile into luci/www/.../view/status-light.js
+```

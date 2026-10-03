@@ -1,0 +1,12 @@
+{
+	"name": "status-light",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"luci": "tsc -p luci-src && luci-compile-view luci-src/status-light.ts luci/www/luci-static/resources/view/status-light.js"
+	},
+	"devDependencies": {
+		"luci-types": "github:virzak/luci-types#79deb13202fac41ad6503e051d117de0855b325b",
+		"typescript": "5.9.3"
+	}
+}
