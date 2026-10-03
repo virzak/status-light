@@ -41,11 +41,14 @@
             "type": "string"
           },
           "brightness": {
-            "description": "Brightness in percent. The T-Display applies it to its backlight; the WS2812 board ignores it for now.",
+            "description": "Brightness in percent. The T-Display applies it to its backlight, the ESP32-S3-Zero to its LED and strip.",
             "type": "integer",
             "minimum": 0,
             "maximum": 100,
             "default": 100
+          },
+          "strip": {
+            "$ref": "#/definitions/strip"
           },
           "wisps": {
             "$ref": "#/definitions/wisps"
@@ -58,6 +61,20 @@
     }
   },
   "definitions": {
+    "strip": {
+      "description": "An addressable LED strip on the board (the ESP32-S3-Zero drives one on GPIO2).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "leds": {
+          "description": "Number of LEDs on the strip; 0 turns it off.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 150,
+          "default": 60
+        }
+      }
+    },
     "wisps": {
       "description": "The flame the LCDs show: glowing ribbons (WispParams in firmware/flame). Omitted keys keep the defaults.",
       "type": "object",
@@ -108,7 +125,7 @@
       }
     },
     "flame": {
-      "description": "The heat-field flame (FlameParams in firmware/flame), for displays that sample it rather than show ribbons. The LCDs show wisps instead. Omitted keys keep the defaults.",
+      "description": "The heat-field flame (FlameParams in firmware/flame), for displays that sample it rather than show ribbons: the ESP32-S3-Zero's LED strip. The LCDs show wisps instead. Omitted keys keep the defaults.",
       "type": "object",
       "additionalProperties": false,
       "properties": {

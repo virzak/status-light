@@ -5,7 +5,9 @@ on the router decides the state and drives a small display board plugged into a
 USB port, and the router's own built-in LCD. Two USB boards are supported, both
 ESP32-S3:
 
-- `firmware/zero-ws2812` - a single WS2812 LED on a Waveshare ESP32-S3-Zero (MicroPython).
+- `firmware/zero-s3` - a Waveshare ESP32-S3-Zero: its WS2812 LED and an optional
+  addressable LED strip (Rust). `firmware/zero-ws2812` is the older MicroPython
+  firmware for the same board, without strip support.
 - `firmware/tdisplay-s3` - a 170x320 colour LCD on a LilyGO T-Display-S3 (Rust).
 
 Both speak the same serial contract in `PROTOCOL.md`, so the router side is shared.
@@ -31,8 +33,13 @@ The table below is the WS2812 board's rendering.
 - `firmware/zero-ws2812/main.py` - MicroPython for the single-LED board. The WS2812
   is on GPIO21 and takes RGB order, not the usual GRB. Includes `push.sh` and
   `board-push.sh` to update it through the router (see below).
+- `firmware/zero-s3/` - Rust (esp-hal) for the ESP32-S3-Zero and its LED strip;
+  build, wiring and flash notes live in that directory.
 - `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
   build and flash notes live in that directory.
+- `firmware/status-protocol/` - the `PROTOCOL.md` parser shared by the Rust boards.
+- `firmware/router-flash.sh` - flashes a board through the router by its USB
+  serial; used by each firmware's `push-router.sh`.
 - `firmware/flame/` - the blue-flame effects as a shared `no_std` crate, used by
   the LCD firmwares and the PC preview so all run identical code: `wisps`
   (glowing ribbons, what the LCDs show) and a heat-field flame.

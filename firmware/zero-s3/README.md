@@ -1,0 +1,61 @@
+# status-zero-s3
+
+Rust (esp-hal) firmware for the Waveshare ESP32-S3-Zero: the internet status on
+the board's own WS2812 and on an optional addressable LED strip. It replaces the
+MicroPython firmware in `../zero-ws2812` and speaks the same protocol
+(`../../PROTOCOL.md`).
+
+| State                 | Onboard LED     | Strip                          |
+|-----------------------|-----------------|--------------------------------|
+| Waiting for the router| dim white       | dim white                      |
+| Online (`B`)          | breathing blue  | blue flame (shared `flame` crate) |
+| Reconnecting (`A`)    | amber           | amber                          |
+| Offline (`R`)         | red             | red                            |
+| No commands for 60 s  | blinking red    | blinking red                   |
+
+## Wiring
+
+- Onboard WS2812: GPIO21, RGB colour order.
+- Strip: WS2812B-type, GRB order, data on GPIO2, ground to GND. The firmware
+  drives up to 150 LEDs; `strip.leds` in the settings picks how many (default 60).
+
+Power the board, and through its 5V pin the strip, from a powered USB hub or a
+separate 5 V supply, not from a bus-powered hub on the router: the strip's
+current there made the board drop off USB. With a separate supply, feed the
+strip's 5V and GND from it and connect only GND and data to the board. The
+firmware caps the strip at about an eighth of full power at 100% brightness.
+
+## Build
+
+Needs the `esp` Rust toolchain (`espup`) with the Xtensa GCC on `PATH`:
+
+```
+cargo build --release
+```
+
+## Flash
+
+From the PC, with the board on USB:
+
+```
+espflash flash --chip esp32s3 --port COMx target/xtensa-esp32s3-none-elf/release/status-zero-s3
+```
+
+Through the router, with the board left in place (`../router-flash.sh` stops
+netled, flashes, and starts it again):
+
+```
+ROUTER=user@router BOARD=<usb serial> ./push-router.sh
+```
+
+`BOARD` is the board's USB serial as netled logs it (`netled: using ... (serial
+...)`); it is needed when more than one board is plugged in.
+
+### First flash over MicroPython
+
+A board still running the MicroPython firmware shows a different USB serial and
+does not answer espflash. Put it in its ROM bootloader from the MicroPython REPL
+(`import machine; machine.bootloader()`), wait for it to re-enumerate as `USB
+JTAG/serial debug unit` (this can take 20-30 s), then flash it as above with that
+serial. Unplug and replug the board afterwards: `machine.bootloader()` leaves a
+flag that makes it boot back into the bootloader instead of the new firmware.

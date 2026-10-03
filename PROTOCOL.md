@@ -50,6 +50,7 @@ with `S reset`:
 ```
 S reset              restore the built-in defaults; the values below follow
 S brightness 40      percent, 0-100
+S strip_leds 60      LEDs on an addressable strip attached to the board, 0-150
 S strands 40         wisp flame: strands, height, sway, speed, glow, width
 S sway 60              (see WispParams)
 S cooling 2          heat-field flame: cooling, drift, flicker, seed_min,

@@ -26,7 +26,7 @@ const WISPS = [
 ];
 
 // The heat-field flame (FlameParams), for displays that sample it rather than
-// show ribbons. Not on this page, but kept through a save.
+// show ribbons: the ESP32-S3-Zero's LED strip. On the boards' Strip tab.
 const FLAME = [
 	[ 'cooling', _('Cooling'), 'range(0,20)' ],
 	[ 'drift', _('Drift'), 'range(0,3)' ],
@@ -36,6 +36,11 @@ const FLAME = [
 	[ 'blue_full', _('Blue full at heat'), 'range(1,255)' ],
 	[ 'green_start', _('Green starts at heat'), 'range(0,254)' ],
 	[ 'white_start', _('White tip starts at heat'), 'range(0,254)' ]
+];
+
+// An addressable LED strip on a board.
+const STRIP = [
+	[ 'leds', _('LEDs on the strip'), 'range(0,150)' ]
 ];
 
 // Espressif (vendor 303a) boards currently on USB: [{ serial, product }].
@@ -54,7 +59,7 @@ function presentBoards() {
 }
 
 // Nested objects in a board or LCD entry and their keys.
-const GROUPS = { wisps: WISPS, flame: FLAME };
+const GROUPS = { strip: STRIP, wisps: WISPS, flame: FLAME };
 
 // { brightness, wisps: { sway } } -> { brightness, wisps_sway } for the form.
 function flatten(obj) {
@@ -93,9 +98,10 @@ function collect(section) {
 	return Object.keys(out).length ? out : null;
 }
 
-function addFlameOptions(s) {
-	for (const [ k, label, datatype ] of WISPS) {
-		const o = s.taboption('flame', form.Value, `wisps_${k}`, label);
+// One field per key of GROUPS[group] on the given tab.
+function addGroupOptions(s, tab, group) {
+	for (const [ k, label, datatype ] of GROUPS[group]) {
+		const o = s.taboption(tab, form.Value, `${group}_${k}`, label);
 		o.datatype = datatype;
 		o.placeholder = _('default');
 	}
@@ -139,7 +145,7 @@ return view.extend({
 		let o = s.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
 		o.datatype = 'range(5,100)';
 		o.placeholder = '80';
-		addFlameOptions(s);
+		addGroupOptions(s, 'flame', 'wisps');
 
 		s = m.section(form.TypedSection, 'board', _('USB status boards'),
 			_('Matched by USB serial number. Boards currently plugged in are offered in the list.'));
@@ -147,6 +153,7 @@ return view.extend({
 		s.addremove = true;
 		s.tab('general', _('General'));
 		s.tab('flame', _('Flame'));
+		s.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s, and its flame.'));
 
 		o = s.taboption('general', form.Value, 'serial', _('USB serial number'));
 		o.rmempty = false;
@@ -166,7 +173,9 @@ return view.extend({
 		o = s.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
 		o.datatype = 'range(0,100)';
 		o.placeholder = '100';
-		addFlameOptions(s);
+		addGroupOptions(s, 'flame', 'wisps');
+		addGroupOptions(s, 'strip', 'strip');
+		addGroupOptions(s, 'strip', 'flame');
 
 		this.map = m;
 		return m.render();
