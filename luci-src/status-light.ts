@@ -77,7 +77,7 @@ const STRIP: readonly Field[] = [
 	[ 'secondary', _('Secondary colour'), 'color',
 		_('Where the pattern\'s gradient ends, as #rrggbb: a comet\'s tail, a glow\'s edges, the far end of the strip. Empty keeps the whole pattern in the primary.') ],
 	[ 'background', _('Background colour'), 'color',
-		_('The LEDs outside the pattern, as #rrggbb. Empty leaves them a faint glow of the pattern\'s colour.') ],
+		_('The LEDs outside the pattern, as #rrggbb. Empty means black (off).') ],
 	[ 'speed', _('Speed'), 'range(1,100)' ],
 	[ 'width', _('Width (LEDs)'), 'range(1,50)' ],
 	[ 'identify', _('Identify LEDs'), 'flag',
@@ -175,7 +175,7 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 		}
 		if (datatype == 'color') {
 			const o = s.taboption(tab, form.Value, `${group}_${k}`, label, description ?? '');
-			o.placeholder = k == 'primary' ? '#0040ff' : _('none');
+			o.placeholder = ({ primary: '#0040ff', background: '#000000' } as Record<string, string>)[k] ?? _('none');
 			o.validate = (_section_id: string, value: string) =>
 				(!value || /^#[0-9a-fA-F]{6}$/.test(value)) ? true : _('Expecting a colour as #rrggbb');
 			continue;

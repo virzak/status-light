@@ -93,9 +93,10 @@
           "pattern": "^#[0-9a-fA-F]{6}$"
         },
         "background": {
-          "description": "The colour of the LEDs outside the pattern, as #rrggbb. Without one they keep a faint glow of the pattern's colour.",
+          "description": "The colour of the LEDs outside the pattern, as #rrggbb. Black (off) by default.",
           "type": "string",
-          "pattern": "^#[0-9a-fA-F]{6}$"
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "default": "#000000"
         },
         "speed": {
           "description": "How fast the pattern moves, 1 (slow) to 100 (fast): one sweep round trip in about 20 s to 2 s; a heartbeat runs 4 times faster.",

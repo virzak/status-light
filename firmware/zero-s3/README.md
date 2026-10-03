@@ -30,8 +30,8 @@ Per board in `/etc/status-light.json` (see `settings.schema.json`), or on the
 Strip tab of the router's settings page: `leds`, the online `pattern` (sweep,
 comet, converge, breathe, wave, heartbeat or twinkle, from `../strip`), its
 `speed` and `width`, its colours (`#rrggbb`: `primary` at the pattern's head or
-centre, an optional `secondary` its gradient runs to, and an optional
-`background` outside the pattern), and `identify`. A strip cannot report its length, so to find it, turn
+centre, an optional `secondary` its gradient runs to, and the `background`
+outside the pattern, black (off) by default), and `identify`. A strip cannot report its length, so to find it, turn
 `identify` on: the first LED lights green, every 10th red and the rest dim blue.
 Count them, set `leds`, and turn `identify` off.
 

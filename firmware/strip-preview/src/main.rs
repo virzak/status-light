@@ -28,7 +28,9 @@ fn main() {
         params.primary = c;
     }
     params.secondary = color("--secondary");
-    params.background = color("--background");
+    if let Some(c) = color("--background") {
+        params.background = c;
+    }
 
     if let Some(dir) = arg("--sheet") {
         sheets(dir, leds, &params);

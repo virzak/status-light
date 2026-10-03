@@ -143,7 +143,7 @@ impl Settings {
                 } else if is("strip_secondary") {
                     self.params.secondary = Some(c);
                 } else {
-                    self.params.background = Some(c);
+                    self.params.background = c;
                 }
             }
             return;

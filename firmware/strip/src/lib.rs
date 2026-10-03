@@ -6,7 +6,8 @@
 //! next frame. Each pattern gives every LED a glow (how much it takes part in
 //! the pattern, 0 to 1) and a place within the pattern (0 to 1, such as a
 //! comet's head to the end of its tail). The place picks a colour on a gradient
-//! from the primary to the secondary; the glow blends that over the background.
+//! from the primary to the secondary; the glow blends that over the background,
+//! which is black (off) unless set.
 //! Colours are full scale; the caller scales them to its brightness.
 
 #![no_std]
@@ -77,9 +78,8 @@ pub struct Params {
     /// Where the pattern's gradient ends: its tail or edges. `None` keeps the
     /// whole pattern in the primary.
     pub secondary: Option<Rgb>,
-    /// The LEDs outside the pattern. `None` leaves them a faint glow of the
-    /// pattern's colour, so the strip still reads as lit.
-    pub background: Option<Rgb>,
+    /// The LEDs outside the pattern; black (the default) leaves them off.
+    pub background: Rgb,
 }
 
 /// The default primary colour, a strong blue.
@@ -87,7 +87,7 @@ pub const DEFAULT_PRIMARY: Rgb = [0x00, 0x40, 0xff];
 
 impl Default for Params {
     fn default() -> Self {
-        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, background: None }
+        Self { speed: 30, width: 8, primary: DEFAULT_PRIMARY, secondary: None, background: [0, 0, 0] }
     }
 }
 
@@ -115,12 +115,6 @@ impl Params {
         self.width.max(1) as f32
     }
 }
-
-/// Without a background, the share of the pattern's colour the moving patterns
-/// keep everywhere, so the strip reads as lit rather than as a lone moving dot;
-/// the whole-strip patterns (breathe, heartbeat) rest a little brighter.
-const FLOOR: f32 = 0.08;
-const WHOLE_STRIP_FLOOR: f32 = 0.1;
 
 /// Fill `px` (one entry per LED) with the pattern at time `ms`.
 pub fn render(pattern: Pattern, params: &Params, ms: u64, px: &mut [Rgb]) {
@@ -173,16 +167,7 @@ pub fn render(pattern: Pattern, params: &Params, ms: u64, px: &mut [Rgb]) {
             Some(secondary) => blend(params.primary, secondary, place),
             None => params.primary,
         };
-        *p = match params.background {
-            Some(background) => blend(background, color, glow),
-            None => {
-                let floor = match pattern {
-                    Pattern::Breathe | Pattern::Heartbeat => WHOLE_STRIP_FLOOR,
-                    _ => FLOOR,
-                };
-                blend([0, 0, 0], color, floor + (1.0 - floor) * glow)
-            }
-        };
+        *p = blend(params.background, color, glow);
     }
 }
 
@@ -285,16 +270,18 @@ mod tests {
     }
 
     #[test]
-    fn every_pattern_lights_every_led_and_stays_in_range() {
+    fn every_pattern_lights_some_leds_over_time() {
         let params = Params::default();
         for p in Pattern::ALL {
             let mut px = [[0u8; 3]; 60];
+            let mut lit = 0;
             for ms in (0..10_000).step_by(37) {
                 render(p, &params, ms, &mut px);
-                // The default primary has no red, and every pattern keeps a
-                // floor of light.
-                assert!(px.iter().all(|c| c[0] == 0 && c[2] > 0), "{p:?} at {ms}");
+                // The default primary has no red.
+                assert!(px.iter().all(|c| c[0] == 0), "{p:?} at {ms}");
+                lit += px.iter().filter(|c| c[2] > 128).count();
             }
+            assert!(lit > 0, "{p:?} never lit");
         }
     }
 
@@ -309,7 +296,7 @@ mod tests {
     #[test]
     fn comet_runs_from_primary_at_the_head_to_secondary_in_the_tail() {
         let (red, green) = ([255, 0, 0], [0, 255, 0]);
-        let params = Params { primary: red, secondary: Some(green), background: Some([0, 0, 0]), ..Params::default() };
+        let params = Params { primary: red, secondary: Some(green), ..Params::default() };
         let mut px = [[0u8; 3]; 60];
         // A third of the way through the cycle the head is mid-strip.
         render(Pattern::Comet, &params, params.period_ms() / 3, &mut px);
@@ -323,11 +310,13 @@ mod tests {
     #[test]
     fn background_shows_exactly_outside_the_pattern() {
         let purple = [80, 0, 160];
-        let params = Params { background: Some(purple), ..Params::default() };
         let mut px = [[0u8; 3]; 60];
-        for p in [Pattern::Sweep, Pattern::Comet, Pattern::Converge] {
-            render(p, &params, 1234, &mut px);
-            assert!(px.iter().filter(|&&c| c == purple).count() > 20, "{p:?}");
+        for background in [purple, [0, 0, 0]] {
+            let params = Params { background, ..Params::default() };
+            for p in [Pattern::Sweep, Pattern::Comet, Pattern::Converge] {
+                render(p, &params, 1234, &mut px);
+                assert!(px.iter().filter(|&&c| c == background).count() > 20, "{p:?} on {background:?}");
+            }
         }
     }
 
