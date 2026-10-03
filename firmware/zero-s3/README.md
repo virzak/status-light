@@ -10,8 +10,8 @@ MicroPython firmware in `../zero-ws2812` and speaks the same protocol
 | Waiting for the router| dim white       | dim white                      |
 | Online (`B`)          | breathing blue  | a blue glow sweeping end to end |
 | Reconnecting (`A`)    | amber           | amber                          |
-| Offline (`R`)         | red             | red                            |
-| No commands for 60 s  | blinking red    | blinking red                   |
+| Offline (`R`)         | red, flashing 0.5 s on / 0.5 s off | same           |
+| No commands for 60 s  | red, pulsing slowly | same                       |
 
 ## Wiring
 

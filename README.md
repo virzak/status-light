@@ -11,15 +11,16 @@ ESP32-S3:
 - `firmware/tdisplay-s3` - a 170x320 colour LCD on a LilyGO T-Display-S3 (Rust).
 
 Both speak the same serial contract in `PROTOCOL.md`, so the router side is shared.
-The table below is the WS2812 board's rendering.
+The table below is the ESP32-S3-Zero's rendering (`firmware/zero-s3`), on its own
+LED and its strip.
 
-| Light         | Meaning                                                   |
-|---------------|-----------------------------------------------------------|
-| Dim white     | Board booted, waiting for the router                      |
-| Breathing blue| Online                                                    |
-| Amber         | 1-2 failed checks (blip or PPPoE reconnecting)            |
-| Red           | 3+ failed checks (offline 15 s or more)                   |
-| Blinking red  | No update from the router for 60 s (router or service down) |
+| Light                          | Meaning                                                     |
+|--------------------------------|-------------------------------------------------------------|
+| Dim white                      | Board booted, waiting for the router                        |
+| Breathing blue (strip: sweep)  | Online                                                      |
+| Amber                          | 1-2 failed checks (blip or PPPoE reconnecting)              |
+| Red flashing, 0.5 s on/off     | 3+ failed checks (offline 15 s or more)                     |
+| Red pulsing slowly             | No update from the router for 60 s (router or service down) |
 
 ## Layout
 

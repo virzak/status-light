@@ -44,6 +44,7 @@ const STRIP_LEVEL: u32 = 32;
 const WATCHDOG: Duration = Duration::from_secs(60);
 const FRAME_DT: Duration = Duration::from_millis(33);
 const BREATHE_MS: u64 = 4000;
+/// Offline flashes red: this long on, then this long off.
 const BLINK_MS: u64 = 500;
 
 /// Share of full brightness the strip keeps away from the sweep, so it reads as
@@ -83,12 +84,14 @@ impl State {
             Self::Online => return None,
             Self::Boot => RGB8::new(64, 64, 64),
             Self::Degraded => RGB8::new(255, 85, 0),
-            Self::Offline => RGB8::new(255, 0, 0),
+            // Offline flashes; no signal pulses slowly, so the two stay distinct
+            // (PROTOCOL.md): the internet is down vs. the router went silent.
+            Self::Offline if (ms / BLINK_MS) % 2 == 0 => RGB8::new(255, 0, 0),
+            Self::Offline => RGB8::default(),
             Self::Green => RGB8::new(0, 255, 0),
             Self::White => RGB8::new(255, 255, 255),
             Self::Off => RGB8::default(),
-            Self::NoSignal if (ms / BLINK_MS) % 2 == 0 => RGB8::new(255, 0, 0),
-            Self::NoSignal => RGB8::default(),
+            Self::NoSignal => RGB8::new((255.0 * breathe(ms)) as u8, 0, 0),
         })
     }
 }
@@ -158,12 +161,12 @@ impl Settings {
     }
 }
 
-/// Breathing blue for the onboard LED: a raised cosine, squared so the fade
-/// looks even to the eye.
-fn breathe(ms: u64) -> RGB8 {
+/// A slow breathing level, 0 to 1: a raised cosine, squared so the fade looks
+/// even to the eye.
+fn breathe(ms: u64) -> f32 {
     let phase = (ms % BREATHE_MS) as f32 / BREATHE_MS as f32;
     let v = (1.0 - cos(2.0 * core::f32::consts::PI * phase)) / 2.0;
-    RGB8::new(0, 0, (255.0 * v * v) as u8)
+    v * v
 }
 
 /// The online strip: a soft glow sweeping from end to end and back, slowing at
@@ -271,7 +274,7 @@ async fn main(_spawner: Spawner) -> ! {
                     }
                     None => {
                         sweep(&settings, ms, &mut px);
-                        settings.scale(breathe(ms), LED_LEVEL)
+                        settings.scale(RGB8::new(0, 0, (255.0 * breathe(ms)) as u8), LED_LEVEL)
                     }
                 };
                 if settings.identify {
