@@ -9,7 +9,7 @@ serial and shows it on the 320x170 ST7789 LCD:
 
 Built on the `lilygo-t-display-s3` board crate and its `esp-lcd-i8080` DMA driver
 (published from https://github.com/zompinc/esp-lcd-i8080). The router side
-(`router/netled`) is shared with the WS2812 board and does not change: the display
+(`router/netled`) is shared with the ESP32-S3-Zero and does not change: the display
 enumerates under USB vendor `303a` as a `ttyACM`, which netled already finds.
 
 ## Build and flash
@@ -34,8 +34,7 @@ cargo run --release
 ## Deploy
 
 Once flashed, plug the board into the router's USB port. netled drives it with no
-extra step; unlike the MicroPython board there is no serial push script, because
-this is a compiled binary flashed with espflash.
+extra step. To update it in place later, see `push-router.sh`.
 
 ## Status
 
@@ -44,8 +43,8 @@ toolchain, flashed to a board, and the blue flame renders when fed `B`.
 
 Note when testing from a PC: opening/closing the USB serial port toggles the
 reset line and drops the ESP32-S3 into ROM download mode (blank screen), so a
-persistent feed is best done from the router, where netled drives it like the
-WS2812 board with no resets.
+persistent feed is best done from the router, where netled drives it with no
+resets.
 
 The flame is `flame::wisps`: thin ribbons whose edges glow and add up where they
 cross, through a blue palette (black, deep blue, blue, cyan, white), drawn into

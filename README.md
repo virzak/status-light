@@ -6,8 +6,7 @@ USB port, and the router's own built-in LCD. Two USB boards are supported, both
 ESP32-S3:
 
 - `firmware/zero-s3` - a Waveshare ESP32-S3-Zero: its WS2812 LED and an optional
-  addressable LED strip (Rust). `firmware/zero-ws2812` is the older MicroPython
-  firmware for the same board, without strip support.
+  addressable LED strip (Rust).
 - `firmware/tdisplay-s3` - a 170x320 colour LCD on a LilyGO T-Display-S3 (Rust).
 
 Both speak the same serial contract in `PROTOCOL.md`, so the router side is shared.
@@ -31,9 +30,6 @@ LED and its strip.
 - `router/netled.init` - procd service, installed as `/etc/init.d/netled`.
 - `router/flame-screen/` - the blue flame on the router's built-in LCD while GL's
   screen UI sleeps (see below).
-- `firmware/zero-ws2812/main.py` - MicroPython for the single-LED board. The WS2812
-  is on GPIO21 and takes RGB order, not the usual GRB. Includes `push.sh` and
-  `board-push.sh` to update it through the router (see below).
 - `firmware/zero-s3/` - Rust (esp-hal) for the ESP32-S3-Zero and its LED strip;
   build, wiring and flash notes live in that directory.
 - `firmware/tdisplay-s3/` - Rust (esp-hal) for the LCD board. Flashed with espflash;
@@ -45,27 +41,6 @@ LED and its strip.
   the LCD firmwares and the PC preview so all run identical code: `wisps`
   (glowing ribbons, what the LCDs show) and a heat-field flame (preview only).
 - `firmware/flame-preview/` - a PC window that runs the flame for live tuning.
-
-## Flashing the WS2812 board (MicroPython)
-
-```
-uvx --from esptool esptool --port COMx erase-flash
-uvx --from esptool esptool --port COMx --baud 460800 write-flash 0 ESP32_GENERIC_S3-<date>-v1.29.0.bin
-uvx mpremote connect COMx fs cp firmware/zero-ws2812/main.py :main.py + reset
-```
-
-Firmware: https://micropython.org/download/ESP32_GENERIC_S3/ . The COM port
-number changes after flashing.
-
-To update `main.py` later without unplugging the board from the router:
-
-```
-ROUTER=user@router firmware/zero-ws2812/push.sh
-```
-
-It stops `netled`, writes the file through the MicroPython raw REPL on the
-router's serial port, soft-resets the board and starts `netled` again. It
-prints `WROTE <bytes>`, which should match the local file size.
 
 ## Installing on the router
 
@@ -131,9 +106,9 @@ documents each key on hover.
 
 flame-screen re-reads the file when it changes. netled sends each board its
 values as `S` lines (see `PROTOCOL.md`) when the board connects and whenever the
-file changes; the T-Display applies brightness and flame tuning live, and the
-WS2812 board ignores them for now. Install the default file once and keep it
-across firmware upgrades:
+file changes; the T-Display applies brightness and the wisp tuning live, the
+ESP32-S3-Zero brightness and its strip settings. Install the default file once
+and keep it across firmware upgrades:
 
 ```
 scp -O router/status-light.json "$ROUTER:/tmp/" && ssh "$ROUTER" 'sudo sh -c "

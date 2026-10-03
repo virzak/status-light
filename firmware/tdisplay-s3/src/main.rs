@@ -4,7 +4,7 @@
 //! over USB serial and shows it on the ST7789 LCD. When online it renders an
 //! animated blue flame of glowing wisps; the other states are static colour +
 //! label screens.
-//! The router side (`router/netled`) is shared with the WS2812 board, unchanged.
+//! The router side (`router/netled`) is shared with the ESP32-S3-Zero, unchanged.
 //! `S` lines from netled (PROTOCOL.md) set the backlight brightness and the
 //! wisp parameters live, from the router's /etc/status-light.json.
 //!

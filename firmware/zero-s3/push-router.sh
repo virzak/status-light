@@ -2,7 +2,7 @@
 # Run from the PC: build the firmware and flash it to the ESP32-S3-Zero while it
 # stays plugged into the router, using espflash on the router (see
 # ../router-flash.sh). The board must already run this firmware or be in its
-# ROM bootloader; see README.md for the first flash over MicroPython.
+# ROM bootloader; see README.md for a board's first flash.
 set -e
 cd "$(dirname "$0")"
 ROUTER=${1:-${ROUTER:?usage: ROUTER=user@router firmware/zero-s3/push-router.sh, or pass user@router as the argument}}

@@ -1,9 +1,8 @@
 # status-zero-s3
 
 Rust (esp-hal) firmware for the Waveshare ESP32-S3-Zero: the internet status on
-the board's own WS2812 and on an optional addressable LED strip. It replaces the
-MicroPython firmware in `../zero-ws2812` and speaks the same protocol
-(`../../PROTOCOL.md`).
+the board's own WS2812 and on an optional addressable LED strip, speaking the
+protocol in `../../PROTOCOL.md`.
 
 | State                 | Onboard LED     | Strip                          |
 |-----------------------|-----------------|--------------------------------|
@@ -59,11 +58,13 @@ ROUTER=user@router BOARD=<usb serial> ./push-router.sh
 `BOARD` is the board's USB serial as netled logs it (`netled: using ... (serial
 ...)`); it is needed when more than one board is plugged in.
 
-### First flash over MicroPython
+### First flash of a board running other firmware
 
-A board still running the MicroPython firmware shows a different USB serial and
-does not answer espflash. Put it in its ROM bootloader from the MicroPython REPL
-(`import machine; machine.bootloader()`), wait for it to re-enumerate as `USB
-JTAG/serial debug unit` (this can take 20-30 s), then flash it as above with that
-serial. Unplug and replug the board afterwards: `machine.bootloader()` leaves a
-flag that makes it boot back into the bootloader instead of the new firmware.
+A board that ships with, or was given, other firmware (MicroPython, for example)
+may show a different USB serial and not answer espflash. Put it in its ROM
+bootloader: hold BOOT while plugging it in, or from MicroPython run `import
+machine; machine.bootloader()`. Wait for it to re-enumerate as `USB JTAG/serial
+debug unit` (this can take 20-30 s), then flash it as above with that serial.
+Unplug and replug the board afterwards: entering the bootloader from firmware
+can leave a flag that boots it back into the bootloader instead of the new
+firmware.
