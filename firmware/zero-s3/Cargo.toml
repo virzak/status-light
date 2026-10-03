@@ -1,18 +1,17 @@
 [package]
-name         = "status-tdisplay-s3"
+name         = "status-zero-s3"
 version      = "0.1.0"
 edition      = "2024"
 rust-version = "1.88"
 license      = "MIT"
-description  = "Internet-status display firmware for the LilyGO T-Display-S3 (esp-hal, blue flame when online)"
+description  = "Internet-status firmware for the Waveshare ESP32-S3-Zero: its onboard WS2812 plus an addressable LED strip"
 
 [dependencies]
-# Board support and the i8080 LCD driver (both published from zompinc/esp-lcd-i8080).
-lilygo-t-display-s3 = "0.1.0"
-flame = { path = "../flame" }
 status-protocol = { path = "../status-protocol" }
 
-esp-hal      = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
+esp-hal          = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
+esp-hal-smartled = { version = "0.18.0", features = ["esp32s3"] }
+smart-leds-trait = "0.3.2"
 esp-rtos     = { version = "0.4.0", features = ["embassy", "esp-alloc", "esp32s3", "log-04"] }
 esp-alloc    = { version = "0.11.0", features = ["esp32s3"] }
 esp-backtrace = { version = "0.20.0", features = ["esp32s3", "panic-handler", "println"] }
@@ -23,7 +22,6 @@ embassy-executor = "0.10.0"
 embassy-time     = "0.5.0"
 embassy-futures  = "0.1.1"
 
-embedded-graphics = "0.8.2"
 embedded-io-async = "0.6"
 
 [profile.dev]

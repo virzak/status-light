@@ -35,8 +35,12 @@ the watchdog means the monitor itself went silent.
 
 The command set is the contract; how a board shows each state is up to its firmware.
 
-- `firmware/zero-ws2812` (single WS2812): breathing blue for `B`, solid amber/red
-  for `A`/`R`, dim white on boot before the first command, blinking red on watchdog.
+- `firmware/zero-s3` (WS2812 plus an LED strip): breathing blue, and a glow
+  sweeping along the strip, for `B`; amber for `A`; red flashing 0.5 s on, 0.5 s
+  off for `R`; dim white on boot before the first command; a slow red pulse on
+  watchdog.
+- `firmware/zero-ws2812` (single WS2812, MicroPython): breathing blue for `B`,
+  solid amber/red for `A`/`R`, dim white on boot, blinking red on watchdog.
 - `firmware/tdisplay-s3` (170x320 LCD): colour plus on-screen text, and room to show
   more than the six states below allow.
 
@@ -52,9 +56,10 @@ S reset              restore the built-in defaults; the values below follow
 S brightness 40      percent, 0-100
 S strands 40         wisp flame: strands, height, sway, speed, glow, width
 S sway 60              (see WispParams)
-S cooling 2          heat-field flame: cooling, drift, flicker, seed_min,
-S drift 3              seed_max, blue_full, green_start, white_start
-                       (see FlameParams)
+S strip_leds 60      an LED strip on the board: LEDs on it (0-300), how fast
+S strip_speed 30       its glow sweeps (1-100) and how wide it is (LEDs, 1-50);
+S strip_width 8        strip_identify 1 shows a counting pattern instead
+S strip_identify 0
 ```
 
 A board applies the keys it supports and ignores the rest, so a board without

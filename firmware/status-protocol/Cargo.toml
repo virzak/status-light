@@ -1,0 +1,6 @@
+[package]
+name        = "status-protocol"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+description = "Shared no_std parser for the status-light serial protocol (PROTOCOL.md)"

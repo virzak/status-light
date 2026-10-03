@@ -25,17 +25,14 @@ const WISPS = [
 	[ 'width', _('Ribbon width'), 'range(0,100)' ]
 ];
 
-// The heat-field flame (FlameParams), for displays that sample it rather than
-// show ribbons. Not on this page, but kept through a save.
-const FLAME = [
-	[ 'cooling', _('Cooling'), 'range(0,20)' ],
-	[ 'drift', _('Drift'), 'range(0,3)' ],
-	[ 'flicker', _('Flicker'), 'range(1,64)' ],
-	[ 'seed_min', _('Base heat, cool cells'), 'range(0,255)' ],
-	[ 'seed_max', _('Base heat, hot cells'), 'range(0,255)' ],
-	[ 'blue_full', _('Blue full at heat'), 'range(1,255)' ],
-	[ 'green_start', _('Green starts at heat'), 'range(0,254)' ],
-	[ 'white_start', _('White tip starts at heat'), 'range(0,254)' ]
+// An addressable LED strip on a board; a validator of 'flag' is an on/off
+// switch, stored as a JSON boolean.
+const STRIP = [
+	[ 'leds', _('LEDs on the strip'), 'range(0,300)' ],
+	[ 'speed', _('Sweep speed'), 'range(1,100)' ],
+	[ 'width', _('Glow width (LEDs)'), 'range(1,50)' ],
+	[ 'identify', _('Identify LEDs'), 'flag',
+		_('Show a counting pattern instead of the status: the first LED green, every 10th red, the rest dim blue. Count them, enter the number above, then turn this off.') ]
 ];
 
 // Espressif (vendor 303a) boards currently on USB: [{ serial, product }].
@@ -54,9 +51,10 @@ function presentBoards() {
 }
 
 // Nested objects in a board or LCD entry and their keys.
-const GROUPS = { wisps: WISPS, flame: FLAME };
+const GROUPS = { strip: STRIP, wisps: WISPS };
 
 // { brightness, wisps: { sway } } -> { brightness, wisps_sway } for the form.
+// Booleans become the '1'/'0' a Flag field uses.
 function flatten(obj) {
 	const out = {};
 	if (L.isObject(obj)) {
@@ -66,7 +64,7 @@ function flatten(obj) {
 		for (const g in GROUPS)
 			for (const [ k ] of GROUPS[g])
 				if (L.isObject(obj[g]) && obj[g][k] != null)
-					out[`${g}_${k}`] = obj[g][k];
+					out[`${g}_${k}`] = (typeof obj[g][k] == 'boolean') ? (obj[g][k] ? '1' : '0') : obj[g][k];
 	}
 	return out;
 }
@@ -83,9 +81,17 @@ function collect(section) {
 		out.brightness = num(section.brightness);
 	for (const g in GROUPS) {
 		const group = {};
-		for (const [ k ] of GROUPS[g])
-			if (num(section[`${g}_${k}`]) != null)
-				group[k] = num(section[`${g}_${k}`]);
+		for (const [ k, , datatype ] of GROUPS[g]) {
+			const v = section[`${g}_${k}`];
+			// A switch is only written while on, so the file stays minimal.
+			if (datatype == 'flag') {
+				if (v == '1')
+					group[k] = true;
+			}
+			else if (num(v) != null) {
+				group[k] = num(v);
+			}
+		}
 		if (Object.keys(group).length)
 			out[g] = group;
 	}
@@ -93,9 +99,15 @@ function collect(section) {
 	return Object.keys(out).length ? out : null;
 }
 
-function addFlameOptions(s) {
-	for (const [ k, label, datatype ] of WISPS) {
-		const o = s.taboption('flame', form.Value, `wisps_${k}`, label);
+// One field per key of GROUPS[group] on the given tab.
+function addGroupOptions(s, tab, group) {
+	for (const [ k, label, datatype, description ] of GROUPS[group]) {
+		if (datatype == 'flag') {
+			const o = s.taboption(tab, form.Flag, `${group}_${k}`, label, description);
+			o.rmempty = false;
+			continue;
+		}
+		const o = s.taboption(tab, form.Value, `${group}_${k}`, label);
 		o.datatype = datatype;
 		o.placeholder = _('default');
 	}
@@ -139,7 +151,7 @@ return view.extend({
 		let o = s.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
 		o.datatype = 'range(5,100)';
 		o.placeholder = '80';
-		addFlameOptions(s);
+		addGroupOptions(s, 'flame', 'wisps');
 
 		s = m.section(form.TypedSection, 'board', _('USB status boards'),
 			_('Matched by USB serial number. Boards currently plugged in are offered in the list.'));
@@ -147,6 +159,7 @@ return view.extend({
 		s.addremove = true;
 		s.tab('general', _('General'));
 		s.tab('flame', _('Flame'));
+		s.tab('strip', _('Strip'), _('An addressable LED strip on the board, such as the ESP32-S3-Zero\'s, which shows a blue glow sweeping along it while online.'));
 
 		o = s.taboption('general', form.Value, 'serial', _('USB serial number'));
 		o.rmempty = false;
@@ -166,7 +179,8 @@ return view.extend({
 		o = s.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
 		o.datatype = 'range(0,100)';
 		o.placeholder = '100';
-		addFlameOptions(s);
+		addGroupOptions(s, 'flame', 'wisps');
+		addGroupOptions(s, 'strip', 'strip');
 
 		this.map = m;
 		return m.render();

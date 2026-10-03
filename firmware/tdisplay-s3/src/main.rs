@@ -31,6 +31,7 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
 use flame::wisps::{WispParams, Wisps};
 use lilygo_t_display_s3::{Board, FrameBuffer, HEIGHT, Lcd, WIDTH, resources};
+use status_protocol::{Command, Line, LineBuf, parse_line};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -57,19 +58,20 @@ enum State {
     NoSignal,
 }
 
-impl State {
-    fn from_cmd(c: u8) -> Option<Self> {
-        match c.to_ascii_uppercase() {
-            b'B' => Some(Self::Online),
-            b'A' => Some(Self::Degraded),
-            b'R' => Some(Self::Offline),
-            b'G' => Some(Self::Green),
-            b'W' => Some(Self::White),
-            b'O' => Some(Self::Off),
-            _ => None,
+impl From<Command> for State {
+    fn from(c: Command) -> Self {
+        match c {
+            Command::Online => Self::Online,
+            Command::Degraded => Self::Degraded,
+            Command::Offline => Self::Offline,
+            Command::Green => Self::Green,
+            Command::White => Self::White,
+            Command::Off => Self::Off,
         }
     }
+}
 
+impl State {
     fn color(self) -> Rgb565 {
         match self {
             Self::Boot => Rgb565::CSS_DIM_GRAY,
@@ -116,67 +118,6 @@ fn render_static(frame: &mut FrameBuffer, display: &mut Lcd, state: State) {
     let _ = frame.flush(display);
 }
 
-/// Accumulates received bytes into protocol lines (PROTOCOL.md). A line is
-/// handed out on newline; a line longer than the buffer is dropped whole, so a
-/// garbled burst cannot turn into a command.
-struct LineBuf {
-    buf: [u8; 48],
-    len: usize,
-    overflow: bool,
-}
-
-impl LineBuf {
-    const fn new() -> Self {
-        Self {
-            buf: [0; 48],
-            len: 0,
-            overflow: false,
-        }
-    }
-
-    fn push(&mut self, b: u8) -> Option<&[u8]> {
-        if b == b'\r' || b == b'\n' {
-            let done = !self.overflow && self.len > 0;
-            let len = self.len;
-            self.len = 0;
-            self.overflow = false;
-            return done.then(|| &self.buf[..len]);
-        }
-        if self.len < self.buf.len() {
-            self.buf[self.len] = b;
-            self.len += 1;
-        } else {
-            self.overflow = true;
-        }
-        None
-    }
-}
-
-/// One protocol line: a single state letter, or `S <key> [value]`.
-enum Line<'a> {
-    State(State),
-    Setting(&'a str, &'a str),
-    Unknown,
-}
-
-fn parse_line(raw: &[u8]) -> Line<'_> {
-    let Ok(text) = core::str::from_utf8(raw) else {
-        return Line::Unknown;
-    };
-    let text = text.trim();
-    let bytes = text.as_bytes();
-    if bytes.len() == 1 {
-        return State::from_cmd(bytes[0]).map_or(Line::Unknown, Line::State);
-    }
-    match text.split_once(' ') {
-        Some((s, rest)) if s.eq_ignore_ascii_case("S") => {
-            let (key, value) = rest.trim().split_once(' ').unwrap_or((rest.trim(), ""));
-            Line::Setting(key, value.trim())
-        }
-        _ => Line::Unknown,
-    }
-}
-
 /// Apply one `S` line. Unknown keys and bad values are ignored, per the
 /// protocol. Returns true if the wisp parameters changed.
 fn apply_setting(key: &str, value: &str, params: &mut WispParams, board: &mut Board) -> bool {
@@ -189,7 +130,7 @@ fn apply_setting(key: &str, value: &str, params: &mut WispParams, board: &mut Bo
     let Ok(v) = value.parse::<u8>() else {
         return false;
     };
-    if is("brightness") {
+    if key.eq_ignore_ascii_case("brightness") {
         board.backlight.set_percent(v.min(100));
         return false;
     }
@@ -287,7 +228,8 @@ async fn main(_spawner: Spawner) -> ! {
         if let Some(Ok(1)) = got {
             if let Some(raw) = line.push(byte[0]) {
                 match parse_line(raw) {
-                    Line::State(new) => {
+                    Line::Command(cmd) => {
+                        let new = State::from(cmd);
                         last_cmd = Instant::now();
                         if new != state {
                             let was_online = state == State::Online;
