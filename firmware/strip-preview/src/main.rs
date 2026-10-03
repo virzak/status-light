@@ -7,8 +7,8 @@
 //!
 //! `--sheet <dir>` instead writes one space-time PNG per pattern (LEDs across,
 //! 10 s of frames downwards), which shows a pattern's motion in a single image.
-//! `--leds N` sets the strip length (default 60); `--primary #rrggbb` and
-//! `--secondary #rrggbb` the colours.
+//! `--leds N` sets the strip length (default 60); `--primary`, `--secondary`
+//! and `--background`, each `#rrggbb`, the colours.
 
 use std::time::Instant;
 
@@ -27,9 +27,8 @@ fn main() {
     if let Some(c) = color("--primary") {
         params.primary = c;
     }
-    if let Some(c) = color("--secondary") {
-        params.secondary = c;
-    }
+    params.secondary = color("--secondary");
+    params.background = color("--background");
 
     if let Some(dir) = arg("--sheet") {
         sheets(dir, leds, &params);

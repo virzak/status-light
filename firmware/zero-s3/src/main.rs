@@ -136,12 +136,14 @@ impl Settings {
             }
             return;
         }
-        if is("strip_primary") || is("strip_secondary") {
+        if is("strip_primary") || is("strip_secondary") || is("strip_background") {
             if let Some(c) = strip::parse_color(value) {
                 if is("strip_primary") {
                     self.params.primary = c;
+                } else if is("strip_secondary") {
+                    self.params.secondary = Some(c);
                 } else {
-                    self.params.secondary = c;
+                    self.params.background = Some(c);
                 }
             }
             return;

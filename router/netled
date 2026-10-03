@@ -52,6 +52,7 @@ settings_for() {
   name_setting strip_pattern strip.pattern
   color_setting strip_primary strip.primary
   color_setting strip_secondary strip.secondary
+  color_setting strip_background strip.background
 }
 
 # setting <key> <json path under the board>: one S line, if set and numeric (a

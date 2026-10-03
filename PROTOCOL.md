@@ -50,17 +50,19 @@ keyed by each board's USB serial number. netled sends a board its settings as
 with `S reset`:
 
 ```
-S reset              restore the built-in defaults; the values below follow
-S brightness 40      percent, 0-100
-S strands 40         wisp flame: strands, height, sway, speed, glow, width
-S sway 60              (see WispParams)
-S strip_leds 60      an LED strip on the board: LEDs on it (0-300), the
-S strip_pattern sweep  pattern it shows while online (sweep, comet, converge,
-S strip_speed 30       breathe, wave, heartbeat, twinkle), its speed (1-100)
-S strip_width 8        and width (LEDs, 1-50), and its colours: each LED
-S strip_primary #0040ff  blends from the secondary (at rest; none means dark)
-S strip_secondary #5000a0  to the primary. strip_identify 1 shows a counting
-S strip_identify 0     pattern instead
+S reset                     restore the built-in defaults; the values below follow
+S brightness 40             percent, 0-100
+S strands 40                wisp flame: strands, height, sway, speed, glow, width
+S sway 60                     (see WispParams)
+S strip_leds 60             LED strip: number of LEDs, 0-300
+S strip_pattern comet         pattern while online: sweep, comet, converge,
+                                breathe, wave, heartbeat, twinkle
+S strip_speed 30              speed, 1-100
+S strip_width 8               width in LEDs, 1-50
+S strip_primary #ff2000       colours, #rrggbb: a gradient from the primary
+S strip_secondary #ffd000       (head, centre) to the secondary (tail, edges),
+S strip_background #000830      over the background (outside the pattern)
+S strip_identify 1            show a counting pattern instead of the status
 ```
 
 A board applies the keys it supports and ignores the rest, so a board without
