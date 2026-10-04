@@ -8,6 +8,7 @@ __pycache__/
 /.vscode/*
 !/.vscode/tasks.json
 !/.vscode/launch.json
+!/.vscode/extensions.json
 .idea/
 Thumbs.db
 .DS_Store
