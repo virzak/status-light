@@ -1,55 +1,55 @@
 {
-	"version": "0.2.0",
-	"configurations": [
-		{
-			"name": "Debug strip preview",
-			"type": "lldb",
-			"request": "launch",
-			"cargo": {
-				"args": [
-					"build",
-					"--manifest-path=${workspaceFolder}/firmware/strip-preview/Cargo.toml"
-				],
-				"filter": {
-					"name": "strip-preview",
-					"kind": "bin"
-				}
-			},
-			"args": [],
-			"cwd": "${workspaceFolder}/firmware/strip-preview"
-		},
-		{
-			"name": "Debug flame preview",
-			"type": "lldb",
-			"request": "launch",
-			"cargo": {
-				"args": [
-					"build",
-					"--manifest-path=${workspaceFolder}/firmware/flame-preview/Cargo.toml"
-				],
-				"filter": {
-					"name": "flame-preview",
-					"kind": "bin"
-				}
-			},
-			"args": [],
-			"cwd": "${workspaceFolder}/firmware/flame-preview"
-		},
-		{
-			"name": "Preview in Chrome",
-			"type": "chrome",
-			"request": "launch",
-			"url": "http://localhost:3000",
-			"webRoot": "${workspaceFolder}/firmware/web/www",
-			"preLaunchTask": "Preview: dev"
-		},
-		{
-			"name": "Debug dev server",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceFolder}/scripts/dev.mjs",
-			"cwd": "${workspaceFolder}",
-			"console": "integratedTerminal"
-		}
-	]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug strip preview",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=${workspaceFolder}/firmware/strip-preview/Cargo.toml"
+        ],
+        "filter": {
+          "name": "strip-preview",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/firmware/strip-preview"
+    },
+    {
+      "name": "Debug flame preview",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=${workspaceFolder}/firmware/flame-preview/Cargo.toml"
+        ],
+        "filter": {
+          "name": "flame-preview",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/firmware/flame-preview"
+    },
+    {
+      "name": "Preview in Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/firmware/web/www",
+      "preLaunchTask": "Preview: dev"
+    },
+    {
+      "name": "Debug dev server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/dev.mjs",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
 }

@@ -95,10 +95,7 @@
         "gradient": {
           "description": "How the primary turns into the secondary: hue goes round the colour wheel the short way and stays vivid (blue to yellow passes cyan and green); mix blends them straight (blue to yellow passes grey).",
           "type": "string",
-          "enum": [
-            "hue",
-            "mix"
-          ],
+          "enum": ["hue", "mix"],
           "default": "hue"
         },
         "balance": {
@@ -118,10 +115,7 @@
         "edge": {
           "description": "How the pattern meets the background: soft fades into it; solid lights every LED the pattern covers in full, with a crisp boundary, so its colours show at full strength. Breathe and heartbeat have no edge.",
           "type": "string",
-          "enum": [
-            "soft",
-            "solid"
-          ],
+          "enum": ["soft", "solid"],
           "default": "soft"
         },
         "background": {

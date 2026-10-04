@@ -15,14 +15,14 @@ router side does not change per board.
 
 ## Commands
 
-| Cmd | State | Meaning |
-|-----|-------|---------|
-| `B` | online | Internet reachable. |
+| Cmd | State    | Meaning                                           |
+| --- | -------- | ------------------------------------------------- |
+| `B` | online   | Internet reachable.                               |
 | `A` | degraded | 1-2 failed checks: a blip, or PPPoE reconnecting. |
-| `R` | offline | 3+ failed checks (offline ~15 s or more). |
-| `G` | green | Free/unused; test or custom. |
-| `W` | white | Free/unused; test or custom. |
-| `O` | off | Blank the display. |
+| `R` | offline  | 3+ failed checks (offline ~15 s or more).         |
+| `G` | green    | Free/unused; test or custom.                      |
+| `W` | white    | Free/unused; test or custom.                      |
+| `O` | off      | Blank the display.                                |
 
 ## Watchdog
 

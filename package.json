@@ -1,15 +1,18 @@
 {
-	"name": "status-light",
-	"private": true,
-	"type": "module",
-	"scripts": {
-		"wasm": "cargo build --release --target wasm32-unknown-unknown --manifest-path firmware/web/Cargo.toml && node -e \"require('fs').mkdirSync('luci/www/luci-static/resources/status-light',{recursive:true});require('fs').copyFileSync('firmware/web/target/wasm32-unknown-unknown/release/web.wasm','luci/www/luci-static/resources/status-light/preview.wasm')\"",
-		"luci": "tsc -p luci-src && luci-compile-view luci-src/status-light.ts luci/www/luci-static/resources/view/status-light.js && pnpm run wasm",
-		"dev": "node scripts/dev.mjs"
-	},
-	"devDependencies": {
-		"browser-sync": "^3.0.4",
-		"luci-types": "github:virzak/luci-types#79deb13202fac41ad6503e051d117de0855b325b",
-		"typescript": "5.9.3"
-	}
+  "name": "status-light",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wasm": "cargo build --release --target wasm32-unknown-unknown --manifest-path firmware/web/Cargo.toml && node -e \"require('fs').mkdirSync('luci/www/luci-static/resources/status-light',{recursive:true});require('fs').copyFileSync('firmware/web/target/wasm32-unknown-unknown/release/web.wasm','luci/www/luci-static/resources/status-light/preview.wasm')\"",
+    "luci": "tsc -p luci-src && luci-compile-view luci-src/status-light.ts luci/www/luci-static/resources/view/status-light.js && pnpm run wasm",
+    "dev": "node scripts/dev.mjs",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "browser-sync": "^3.0.4",
+    "husky": "^9.1.7",
+    "luci-types": "github:virzak/luci-types#79deb13202fac41ad6503e051d117de0855b325b",
+    "prettier": "^3.9.9",
+    "typescript": "5.9.3"
+  }
 }
