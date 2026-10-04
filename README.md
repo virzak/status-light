@@ -103,7 +103,9 @@ Flint 4): a form for the same file, with boards currently plugged in offered by
 serial number. The page is written in TypeScript (`luci-src/status-light.ts`), so
 build it first; that type-checks it against declarations for the router's LuCI
 (openwrt-25.12) from [luci-types](https://github.com/virzak/luci-types) and
-compiles it into `luci/www/luci-static/resources/view/status-light.js`. Then copy
+compiles it into `luci/www/luci-static/resources/view/status-light.js`. It also
+builds `firmware/web`, the flame and strip crates as WebAssembly, for the page's
+live previews (`rustup target add wasm32-unknown-unknown` once). Then copy
 the files (only files, so existing directories keep their owner and permissions)
 onto the router and reload rpcd:
 

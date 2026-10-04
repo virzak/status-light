@@ -245,6 +245,141 @@ const ColorValue = form.Value.extend({
 	}
 });
 
+// Live previews: the flame and strip crates compiled to WebAssembly
+// (firmware/web), so they run the code the boards run. They follow the form's
+// current, unsaved values.
+const PREVIEW_WASM = 'status-light/preview.wasm';
+
+/** firmware/web's exports; a number below zero means the default. */
+interface PreviewExports {
+	memory: WebAssembly.Memory;
+	wisps_new(w: number, h: number): number;
+	wisps_params(strands: number, height: number, sway: number, speed: number, glow: number, width: number): void;
+	wisps_frame(dt_ms: number): number;
+	strip_params(pattern: number, speed: number, width: number, primary: number, secondary: number,
+		gradient: number, balance: number, sharpness: number, edge: number, background: number): void;
+	strip_frame(leds: number, ms: number): number;
+}
+
+let previewModule: Promise<WebAssembly.Module> | null = null;
+
+// Compiled once; each preview gets its own instance, so its own animation.
+function loadPreview(): Promise<PreviewExports> {
+	previewModule ??= fetch(L.resource(PREVIEW_WASM))
+		.then((r) => r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.statusText)))
+		.then((bytes) => WebAssembly.compile(bytes));
+	return previewModule.then((mod) => new WebAssembly.Instance(mod, {}).exports as unknown as PreviewExports);
+}
+
+// The strip as a row of LEDs, `leds` across.
+function drawStrip(ctx: CanvasRenderingContext2D, rgb: Uint8Array, leds: number) {
+	const { width, height } = ctx.canvas;
+	ctx.fillStyle = '#000';
+	ctx.fillRect(0, 0, width, height);
+	const step = width / Math.max(leds, 1);
+	const r = Math.max(1, Math.min(step * 0.38, height * 0.3));
+	for (let i = 0; i < leds; i++) {
+		const [ red, green, blue ] = [ rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2] ];
+		const lit = red + green + blue > 0;
+		ctx.fillStyle = lit ? `rgb(${red},${green},${blue})` : '#1c1c1c';
+		ctx.shadowColor = ctx.fillStyle;
+		ctx.shadowBlur = lit ? r * 2 : 0;
+		ctx.beginPath();
+		ctx.arc(step * (i + 0.5), height / 2, r, 0, 2 * Math.PI);
+		ctx.fill();
+	}
+	ctx.shadowBlur = 0;
+}
+
+// A preview field: a canvas animating `group` for one section, `w` by `h`
+// pixels for the flame (the display's size) or a row of LEDs for the strip.
+function previewValue(group: Group, w: number, h: number) {
+	return form.DummyValue.extend({
+		renderWidget(section_id: string) {
+			const section = this.section;
+			const canvas = E('canvas', {
+				width: w,
+				height: h,
+				style: `width:${w}px; max-width:100%; background:#000; border-radius:4px`
+			}) as HTMLCanvasElement;
+			const node = E('div', {}, [ canvas ]);
+
+			const text = (key: string) => String(section.formvalue(section_id, `${group}_${key}`) ?? '').trim();
+			const num = (key: string) => {
+				const v = parseInt(text(key), 10);
+				return isNaN(v) ? -1 : v;
+			};
+			const color = (key: string) => {
+				const c = longHex(text(key));
+				return c ? parseInt(c.slice(1), 16) : -1;
+			};
+			const choice = (key: string) => CHOICES[key].options.findIndex(([ name ]) => name == text(key));
+
+			loadPreview().then((x) => {
+				const ctx = canvas.getContext('2d')!;
+				const image = ctx.createImageData(w, h);
+				if (group == 'wisps')
+					x.wisps_new(w, h);
+				let leds = 0;
+				let identify = false;
+				const read = () => {
+					if (group == 'wisps')
+						x.wisps_params(num('strands'), num('height'), num('sway'), num('speed'), num('glow'), num('width'));
+					else {
+						x.strip_params(choice('pattern'), num('speed'), num('width'), color('primary'), color('secondary'),
+							choice('gradient'), num('balance'), num('sharpness'), choice('edge'), color('background'));
+						leds = Math.min(num('leds') < 0 ? 60 : num('leds'), 300);
+						identify = text('identify') == '1';
+					}
+				};
+
+				const start = performance.now();
+				let last = start, lastRead = -Infinity, shown = false;
+				const frame = (now: number) => {
+					// Stop once the page drops the canvas (a re-render or another page).
+					if (canvas.isConnected)
+						shown = true;
+					else if (shown)
+						return;
+					requestAnimationFrame(frame);
+					const dt = Math.min(now - last, 100);
+					last = now;
+					// Not drawn while its tab is hidden.
+					if (canvas.offsetParent == null)
+						return;
+					if (now - lastRead > 250) {
+						read();
+						lastRead = now;
+					}
+					if (group == 'wisps') {
+						image.data.set(new Uint8Array(x.memory.buffer, x.wisps_frame(Math.round(dt)), w * h * 4));
+						ctx.putImageData(image, 0, 0);
+					}
+					else {
+						const rgb = new Uint8Array(x.memory.buffer, x.strip_frame(leds, now - start), leds * 3).slice();
+						// The counting pattern (the Zero's identify()): first LED
+						// green, every 10th red, the rest dim blue.
+						if (identify)
+							for (let i = 0; i < leds; i++)
+								rgb.set(i == 0 ? [ 0, 255, 0 ] : (i + 1) % 10 == 0 ? [ 255, 0, 0 ] : [ 0, 0, 64 ], 3 * i);
+						drawStrip(ctx, rgb, leds);
+					}
+				};
+				requestAnimationFrame(frame);
+			}).catch((e: Error) => {
+				node.replaceChildren(E('em', {}, _('Preview unavailable: %s could not be loaded (%s).').format(PREVIEW_WASM, e.message)));
+			});
+
+			return node;
+		}
+	});
+}
+
+// The preview at the top of a tab.
+function addPreview(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: string, group: Group, w: number, h: number, description: string) {
+	s.taboption(tab, previewValue(group, w, h), `_preview_${group}`, _('Preview'), description);
+}
+
 // One field per key of GROUPS[group] on the given tab.
 function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: string, group: Group) {
 	for (const [ k, label, datatype, description ] of GROUPS[group]) {
@@ -334,6 +469,8 @@ export default view.extend({
 			const b = lcd.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
 			b.datatype = 'range(5,100)';
 			b.placeholder = '80';
+			addPreview(lcd, 'flame', 'wisps', 320, 240,
+				_('The router LCD\'s flame with the values below, before saving.'));
 			addGroupOptions(lcd, 'flame', 'wisps');
 		}
 
@@ -363,7 +500,11 @@ export default view.extend({
 		o = boards.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
 		o.datatype = 'range(0,100)';
 		o.placeholder = '100';
+		addPreview(boards, 'flame', 'wisps', 320, 170,
+			_('The flame with the values below, before saving, at the T-Display\'s size.'));
 		addGroupOptions(boards, 'flame', 'wisps');
+		addPreview(boards, 'strip', 'strip', 640, 40,
+			_('The pattern while online with the values below, before saving, at full brightness.'));
 		addGroupOptions(boards, 'strip', 'strip');
 
 		this.map = m;

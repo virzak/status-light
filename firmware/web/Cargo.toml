@@ -1,0 +1,24 @@
+[package]
+name        = "web"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+description = "The shared flame and strip effects as WebAssembly, for live previews in the browser"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+flame                  = { path = "../flame" }
+strip                  = { path = "../strip" }
+embedded-graphics-core = "0.4.0"
+
+[profile.release]
+opt-level     = "s"
+lto           = true
+panic         = "abort"
+codegen-units = 1
+strip         = true
+
+[profile.dev]
+panic = "abort"
