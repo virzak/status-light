@@ -3,7 +3,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"luci": "tsc -p luci-src && luci-compile-view luci-src/status-light.ts luci/www/luci-static/resources/view/status-light.js"
+		"wasm": "cargo build --release --target wasm32-unknown-unknown --manifest-path firmware/web/Cargo.toml && node -e \"require('fs').mkdirSync('luci/www/luci-static/resources/status-light',{recursive:true});require('fs').copyFileSync('firmware/web/target/wasm32-unknown-unknown/release/web.wasm','luci/www/luci-static/resources/status-light/preview.wasm')\"",
+		"luci": "tsc -p luci-src && luci-compile-view luci-src/status-light.ts luci/www/luci-static/resources/view/status-light.js && pnpm run wasm"
 	},
 	"devDependencies": {
 		"luci-types": "github:virzak/luci-types#79deb13202fac41ad6503e051d117de0855b325b",
