@@ -117,5 +117,14 @@ pnpm run luci
   /etc/init.d/rpcd reload"'
 ```
 
+While working on the page, `pnpm dev` does this on every change: it watches the
+page and the flame and strip sources, rebuilds, copies the files to the router
+and reloads the page. Open the address it prints (http://localhost:3000, which
+relays to the router's LuCI) and log in there:
+
+```
+ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
+```
+
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.
