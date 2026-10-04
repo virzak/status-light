@@ -11,3 +11,9 @@ indent_size = 2
 [*.md]
 indent_size = 2
 trim_trailing_whitespace = false
+
+# The settings page follows LuCI's own style (it is compiled into a LuCI view
+# and its code is offered upstream), which indents with tabs.
+[luci-src/*.ts]
+indent_style = tab
+indent_size = 4
