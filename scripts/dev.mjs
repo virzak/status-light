@@ -1,18 +1,24 @@
-// Settings page development loop: rebuild on every change, copy the result to
-// the router, and reload the page in the browser.
+// Development loop: rebuild on every change and reload the browser.
+//
+//   pnpm dev
+//
+// serves the standalone preview (firmware/web/www) at http://localhost:3000:
+// the flame and the strip with a control per setting, running the WebAssembly
+// build of the shared crates. Changes to those crates rebuild it; changes to
+// the page reload it. No router needed.
 //
 //   ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
 //
-// Then open the address it prints (http://localhost:3000) and log in to LuCI
-// there. That address relays to the router's LuCI, adds browser-sync's reload
-// script to each page and turns off caching, since LuCI loads the page's
-// JavaScript under a version tag that does not change between builds.
+// also builds the LuCI settings page, copies it to the router on every change,
+// and relays the router's LuCI at the same address (/cgi-bin/luci, after
+// logging in there), with caching off, since LuCI loads the page's JavaScript
+// under a version tag that does not change between builds.
 //
 // ROUTER is the ssh target (with sudo on the router, as in the README).
 // LUCI_URL defaults to http:// plus ROUTER's host; GL.iNet firmware moves
 // LuCI to port 8080. SSH_OPTS adds ssh options, split on spaces. LISTEN adds
 // addresses of this computer to serve on as well as localhost, comma separated,
-// e.g. its LAN address to try the page from a phone.
+// e.g. its LAN address to try the pages from a phone.
 
 import { spawn } from 'node:child_process';
 import { createServer, connect } from 'node:net';
@@ -21,23 +27,21 @@ import { join, relative } from 'node:path';
 import browserSync from 'browser-sync';
 
 const router = process.env.ROUTER;
-if (!router) {
-	console.error('Set ROUTER to the router\'s ssh target, e.g. ROUTER=user@router-address');
-	process.exit(1);
-}
-const luciUrl = process.env.LUCI_URL || `http://${router.replace(/^.*@/, '')}`;
+const luciUrl = router && (process.env.LUCI_URL || `http://${router.replace(/^.*@/, '')}`);
 const sshOpts = (process.env.SSH_OPTS || '').split(' ').filter(Boolean);
 const extraHosts = (process.env.LISTEN || '').split(',').map((h) => h.trim()).filter(Boolean);
 
+const PREVIEW = 'firmware/web/www';
+const WASM = 'firmware/web/target/wasm32-unknown-unknown/release';
+
 // Sources whose change means a new build. luci/www is left out: it is the
 // build's output.
-const WATCH = [
-	'luci-src/**/*.ts',
-	'luci/usr/**',
+const BUILD_WATCH = [
 	'firmware/web/src/**',
 	'firmware/web/Cargo.toml',
 	'firmware/flame/src/**',
-	'firmware/strip/src/**'
+	'firmware/strip/src/**',
+	...(router ? [ 'luci-src/**/*.ts', 'luci/usr/**' ] : [])
 ];
 
 // A shell command (pnpm is a script on Windows, so it needs one).
@@ -86,35 +90,53 @@ async function rebuild() {
 		again = false;
 		const start = Date.now();
 		try {
-			await run('pnpm run --silent luci');
-			await deploy();
-			console.log(`[luci-dev] deployed in ${((Date.now() - start) / 1000).toFixed(1)} s, reloading`);
+			if (router) {
+				await run('pnpm run --silent luci');
+				await deploy();
+			}
+			else
+				await run('pnpm run --silent wasm');
+			console.log(`[dev] ${router ? 'built and deployed' : 'built'} in ${((Date.now() - start) / 1000).toFixed(1)} s, reloading`);
 			bs.reload();
 		}
 		catch (e) {
-			console.error(`[luci-dev] ${e.message}; waiting for the next change`);
+			console.error(`[dev] ${e.message}; waiting for the next change`);
 			bs.notify('Build failed, see the terminal', 5000);
 		}
 	} while (again);
 	building = false;
 }
 
+// Always the latest build, never a cached one.
+const noStore = (_req, res, next) => {
+	res.setHeader('Cache-Control', 'no-store');
+	next();
+};
+
 bs.init({
-	proxy: {
-		target: luciUrl,
-		proxyRes: [ (res) => {
-			res.headers['cache-control'] = 'no-store';
-			delete res.headers['etag'];
-			delete res.headers['last-modified'];
-		} ]
-	},
-	// Only this computer: the proxy is a way into the router's admin pages.
+	// The preview at /, its WebAssembly at /wasm; with a router, everything
+	// else (LuCI) is relayed to it.
+	...(router
+		? {
+			proxy: {
+				target: luciUrl,
+				proxyRes: [ (res) => {
+					res.headers['cache-control'] = 'no-store';
+					delete res.headers['etag'];
+					delete res.headers['last-modified'];
+				} ]
+			},
+			serveStatic: [ PREVIEW, { route: '/wasm', dir: WASM } ]
+		}
+		: { server: { baseDir: PREVIEW, routes: { '/wasm': WASM } } }),
+	middleware: [ noStore ],
+	// Only this computer: with a router, this is a way into its admin pages.
 	listen: 'localhost',
 	open: false,
 	notify: true,
 	ui: false,
 	ghostMode: false,
-	logPrefix: 'luci-dev'
+	logPrefix: 'dev'
 }, () => {
 	// browser-sync serves one address; relay the others to it, connection by
 	// connection, so the reload channel works through them too.
@@ -125,13 +147,16 @@ bs.init({
 			client.pipe(upstream).pipe(client);
 			client.on('error', () => upstream.destroy());
 			upstream.on('error', () => client.destroy());
-		}).on('error', (e) => console.error(`[luci-dev] cannot serve on ${host}: ${e.message}`))
-			.listen(port, host, () => console.log(`[luci-dev] also serving on http://${host}:${port}`));
+		}).on('error', (e) => console.error(`[dev] cannot serve on ${host}: ${e.message}`))
+			.listen(port, host, () => console.log(`[dev] also serving on http://${host}:${port}`));
+	if (router)
+		console.log(`[dev] LuCI (log in there): http://localhost:${port}/cgi-bin/luci`);
 	rebuild();
 });
 
 let timer;
-bs.watch(WATCH, { ignoreInitial: true }, () => {
+bs.watch(BUILD_WATCH, { ignoreInitial: true }, () => {
 	clearTimeout(timer);
 	timer = setTimeout(rebuild, 200);
 });
+bs.watch(`${PREVIEW}/**`, { ignoreInitial: true }, () => bs.reload());

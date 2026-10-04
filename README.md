@@ -117,10 +117,18 @@ pnpm run luci
   /etc/init.d/rpcd reload"'
 ```
 
-While working on the page, `pnpm dev` does this on every change: it watches the
-page and the flame and strip sources, rebuilds, copies the files to the router
-and reloads the page. Open the address it prints (http://localhost:3000, which
-relays to the router's LuCI) and log in there:
+### Preview and development loop
+
+`pnpm dev` serves a preview at http://localhost:3000: the flame and the strip,
+with a control for every setting, running the same code as the boards (the
+flame and strip crates built to WebAssembly by `firmware/web`). It needs no
+router and no login. The values you change are kept in the address, so a link
+shares them, and the page shows them as JSON for the settings file. Saving any
+of the crates rebuilds the module and reloads the page.
+
+With a router, it also builds the settings page and copies it there on every
+change, and relays the router's LuCI at http://localhost:3000/cgi-bin/luci
+(log in there once):
 
 ```
 ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
