@@ -245,6 +245,58 @@ const ColorValue = form.Value.extend({
 	}
 });
 
+// The built-in defaults of the numeric fields (WispParams and strip::Params),
+// shown as placeholders and where an empty field's slider rests.
+const DEFAULTS: Record<Group, Record<string, number>> = {
+	wisps: { strands: 48, height: 90, sway: 50, speed: 50, glow: 50, width: 50 },
+	strip: { leds: 60, balance: 50, sharpness: 0, speed: 30, width: 8 }
+};
+
+// A number field for a 'range(min,max)' datatype: the usual text box (typed,
+// validated, empty meaning the default) with a slider beside it, kept in sync
+// both ways. An empty field's slider rests faded at the placeholder, the
+// default; clearing the box goes back to it.
+const RangeValue = form.Value.extend({
+	renderWidget(section_id: string, option_index: number, cfgvalue: unknown) {
+		const node = this.super('renderWidget', [ section_id, option_index, cfgvalue ]) as HTMLElement;
+		const text = node.querySelector('input') as HTMLInputElement;
+		const [ , min, max ] = /^range\((-?\d+),(-?\d+)\)$/.exec(String(this.datatype)) ?? [ '', '0', '100' ];
+		const fallback = parseInt(String(this.placeholder ?? ''), 10);
+		const slider = E('input', {
+			type: 'range',
+			min,
+			max,
+			step: '1',
+			title: _('Drag to set; clear the box for the default'),
+			style: 'flex:1; min-width:8em; max-width:24em; cursor:pointer'
+		}) as HTMLInputElement;
+
+		const show = () => {
+			const v = parseInt(text.value, 10);
+			slider.value = String(isNaN(v) ? (isNaN(fallback) ? min : fallback) : v);
+			slider.style.opacity = isNaN(v) ? '0.4' : '1';
+		};
+		slider.addEventListener('input', () => {
+			text.value = slider.value;
+			// The events LuCI's text field listens to, so it revalidates and
+			// the form sees the change.
+			text.dispatchEvent(new Event('keyup'));
+			text.dispatchEvent(new Event('change', { bubbles: true }));
+			show();
+		});
+		text.addEventListener('input', show);
+
+		text.style.width = '5em';
+		text.style.flex = 'none';
+		node.style.display = 'flex';
+		node.style.alignItems = 'center';
+		node.style.gap = '.75em';
+		node.insertBefore(slider, node.firstChild);
+		show();
+		return node;
+	}
+});
+
 // Live previews: the flame and strip crates compiled to WebAssembly
 // (firmware/web), so they run the code the boards run. They follow the form's
 // current, unsaved values.
@@ -409,9 +461,9 @@ function addGroupOptions(s: Pick<LuCI.form.AbstractSection, 'taboption'>, tab: s
 					o.depends(`${group}_pattern`, name);
 			continue;
 		}
-		const o = s.taboption(tab, form.Value, `${group}_${k}`, label, description ?? '');
+		const o = s.taboption(tab, RangeValue, `${group}_${k}`, label, description ?? '');
 		o.datatype = datatype;
-		o.placeholder = _('default');
+		o.placeholder = String(DEFAULTS[group][k] ?? '');
 		// Width only means something to some patterns; hide it for the rest.
 		if (group == 'strip' && k == 'width')
 			for (const name of [ '', ...USES_WIDTH ])
@@ -466,7 +518,7 @@ export default view.extend({
 				_('The flame shown while GL\'s screen UI sleeps.'));
 			lcd.tab('general', _('General'));
 			lcd.tab('flame', _('Flame'));
-			const b = lcd.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
+			const b = lcd.taboption('general', RangeValue, 'brightness', _('Brightness (%)'));
 			b.datatype = 'range(5,100)';
 			b.placeholder = '80';
 			addPreview(lcd, 'flame', 'wisps', 320, 240,
@@ -497,7 +549,7 @@ export default view.extend({
 		o = boards.taboption('general', form.Value, 'name', _('Name'));
 		o.placeholder = _('e.g. tdisplay');
 
-		o = boards.taboption('general', form.Value, 'brightness', _('Brightness (%)'));
+		o = boards.taboption('general', RangeValue, 'brightness', _('Brightness (%)'));
 		o.datatype = 'range(0,100)';
 		o.placeholder = '100';
 		addPreview(boards, 'flame', 'wisps', 320, 170,
