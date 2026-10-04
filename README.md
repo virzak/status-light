@@ -126,5 +126,8 @@ relays to the router's LuCI) and log in there:
 ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
 ```
 
+It serves on this computer only; add `LISTEN=` with this computer's LAN address
+to open it from a phone too.
+
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.
