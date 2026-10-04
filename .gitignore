@@ -4,7 +4,11 @@
 __pycache__/
 .venv/
 # Editor / OS
-.vscode/
+# Shared run and debug configurations; personal editor settings stay local.
+/.vscode/*
+!/.vscode/tasks.json
+!/.vscode/launch.json
+!/.vscode/extensions.json
 .idea/
 Thumbs.db
 .DS_Store

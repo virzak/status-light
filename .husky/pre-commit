@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -e
+
+# With no arguments, check the staged files; with any, every tracked file.
+if [ "$#" -lt 1 ]; then
+  staged=$(git diff --cached --name-only --diff-filter=ACM)
+else
+  staged=$(git ls-tree --full-tree --name-only -r HEAD)
+fi
+
+[ -n "$staged" ] || exit 0
+
+# Prettier for the files it formats here: JSON (2 spaces, per .editorconfig),
+# Markdown and YAML. The lockfile is pnpm's own.
+forPretty=$(echo "$staged" | grep -E -e "\.(json|md|ya?ml)$" | grep -v -e "^pnpm-lock\.yaml$" || true)
+if [ -n "$forPretty" ]; then
+  pnpm exec prettier --check $forPretty
+fi
+
+# Ensure a trailing line break.
+echo "$staged" |
+  grep -E -v -e "\.(ico|png|jpg|jpeg|gif|pdf|wasm|bin|lock)$" |
+  xargs bash "$(dirname "$0")/../scripts/end-of-file.sh"

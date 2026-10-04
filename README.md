@@ -13,13 +13,13 @@ Both speak the same serial contract in `PROTOCOL.md`, so the router side is shar
 The table below is the ESP32-S3-Zero's rendering (`firmware/zero-s3`), on its own
 LED and its strip.
 
-| Light                          | Meaning                                                     |
-|--------------------------------|-------------------------------------------------------------|
-| Dim white                      | Board booted, waiting for the router                        |
-| Breathing blue (strip: sweep)  | Online                                                      |
-| Amber                          | 1-2 failed checks (blip or PPPoE reconnecting)              |
-| Red flashing, 0.5 s on/off     | 3+ failed checks (offline 15 s or more)                     |
-| Red pulsing slowly             | No update from the router for 60 s (router or service down) |
+| Light                         | Meaning                                                     |
+| ----------------------------- | ----------------------------------------------------------- |
+| Dim white                     | Board booted, waiting for the router                        |
+| Breathing blue (strip: sweep) | Online                                                      |
+| Amber                         | 1-2 failed checks (blip or PPPoE reconnecting)              |
+| Red flashing, 0.5 s on/off    | 3+ failed checks (offline 15 s or more)                     |
+| Red pulsing slowly            | No update from the router for 60 s (router or service down) |
 
 ## Layout
 
@@ -79,7 +79,11 @@ documents each key on hover.
   "$schema": "https://raw.githubusercontent.com/virzak/status-light/master/settings.schema.json",
   "lcd": { "brightness": 60, "wisps": { "strands": 56 } },
   "boards": {
-    "A0:F2:62:E1:35:58": { "name": "tdisplay", "brightness": 40, "wisps": { "sway": 70 } }
+    "A0:F2:62:E1:35:58": {
+      "name": "tdisplay",
+      "brightness": 40,
+      "wisps": { "sway": 70 }
+    }
   }
 }
 ```
@@ -136,6 +140,15 @@ ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
 
 It serves on this computer only; add `LISTEN=` with this computer's LAN address
 to open it from a phone too.
+
+`pnpm install` also sets up a pre-commit hook (husky) that checks staged JSON,
+Markdown and YAML with Prettier (2-space indents, per `.editorconfig`) and that
+every file ends with a newline; `pnpm exec prettier --write <files>` fixes the
+formatting.
+
+In VS Code, the tasks run the previews, the settings page build and both dev
+loops ("Preview + settings page: dev" takes ROUTER, LUCI_URL and LISTEN from your
+environment); "Preview in Chrome" opens the preview with the debugger attached.
 
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.

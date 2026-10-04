@@ -4,13 +4,13 @@ Rust (esp-hal) firmware for the Waveshare ESP32-S3-Zero: the internet status on
 the board's own WS2812 and on an optional addressable LED strip, speaking the
 protocol in `../../PROTOCOL.md`.
 
-| State                 | Onboard LED     | Strip                          |
-|-----------------------|-----------------|--------------------------------|
-| Waiting for the router| dim white       | dim white                      |
-| Online (`B`)          | breathing blue  | a blue pattern (sweep by default) |
-| Reconnecting (`A`)    | amber           | amber                          |
-| Offline (`R`)         | red, flashing 0.5 s on / 0.5 s off | same           |
-| No commands for 60 s  | red, pulsing slowly | same                       |
+| State                  | Onboard LED                        | Strip                             |
+| ---------------------- | ---------------------------------- | --------------------------------- |
+| Waiting for the router | dim white                          | dim white                         |
+| Online (`B`)           | breathing blue                     | a blue pattern (sweep by default) |
+| Reconnecting (`A`)     | amber                              | amber                             |
+| Offline (`R`)          | red, flashing 0.5 s on / 0.5 s off | same                              |
+| No commands for 60 s   | red, pulsing slowly                | same                              |
 
 ## Wiring
 
