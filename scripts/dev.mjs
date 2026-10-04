@@ -14,6 +14,9 @@
 // logging in there), with caching off, since LuCI loads the page's JavaScript
 // under a version tag that does not change between builds.
 //
+// --deploy insists on a router, so a missing ROUTER is an error rather than a
+// quiet preview-only run (for tasks that pass the environment through).
+//
 // ROUTER is the ssh target (with sudo on the router, as in the README).
 // LUCI_URL defaults to http:// plus ROUTER's host; GL.iNet firmware moves
 // LuCI to port 8080. SSH_OPTS adds ssh options, split on spaces. LISTEN adds
@@ -27,6 +30,10 @@ import { join, relative } from 'node:path';
 import browserSync from 'browser-sync';
 
 const router = process.env.ROUTER;
+if (process.argv.includes('--deploy') && !router) {
+	console.error('[dev] --deploy needs ROUTER, the router\'s ssh target, e.g. ROUTER=user@router-address');
+	process.exit(1);
+}
 const luciUrl = router && (process.env.LUCI_URL || `http://${router.replace(/^.*@/, '')}`);
 const sshOpts = (process.env.SSH_OPTS || '').split(' ').filter(Boolean);
 const extraHosts = (process.env.LISTEN || '').split(',').map((h) => h.trim()).filter(Boolean);

@@ -137,5 +137,9 @@ ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
 It serves on this computer only; add `LISTEN=` with this computer's LAN address
 to open it from a phone too.
 
+In VS Code, the tasks run the previews, the settings page build and both dev
+loops ("Preview + settings page: dev" takes ROUTER, LUCI_URL and LISTEN from your
+environment); "Preview in Chrome" opens the preview with the debugger attached.
+
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.

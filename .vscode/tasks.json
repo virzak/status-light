@@ -1,0 +1,128 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Strip preview",
+			"detail": "LED strip simulator: keys 1-7 pick the pattern, arrows speed and width",
+			"type": "shell",
+			"command": "cargo run --release",
+			"options": {
+				"cwd": "${workspaceFolder}/firmware/strip-preview"
+			},
+			"problemMatcher": [
+				"$rustc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Strip preview: sheets",
+			"detail": "One space-time PNG per pattern (LEDs across, 10 s down) into firmware/strip-preview/target/sheets",
+			"type": "shell",
+			"command": "cargo run --release -- --sheet target/sheets",
+			"options": {
+				"cwd": "${workspaceFolder}/firmware/strip-preview"
+			},
+			"problemMatcher": [
+				"$rustc"
+			]
+		},
+		{
+			"label": "Flame preview: T-Display",
+			"detail": "Screen simulator, 320x170 like the T-Display-S3",
+			"type": "shell",
+			"command": "cargo run --release",
+			"options": {
+				"cwd": "${workspaceFolder}/firmware/flame-preview"
+			},
+			"problemMatcher": [
+				"$rustc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Flame preview: router LCD",
+			"detail": "Screen simulator, 320x240 like the Flint 4's own LCD",
+			"type": "shell",
+			"command": "cargo run --release -- --size 320x240",
+			"options": {
+				"cwd": "${workspaceFolder}/firmware/flame-preview"
+			},
+			"problemMatcher": [
+				"$rustc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Settings page: build",
+			"detail": "Type-check luci-src/status-light.ts, compile it into luci/www/.../view/status-light.js, and build the preview WebAssembly",
+			"type": "shell",
+			"command": "pnpm run luci",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Preview + settings page: dev",
+			"detail": "Preview at http://localhost:3000, settings page deployed to the router on every change; set ROUTER (and LUCI_URL, LISTEN) in your environment",
+			"type": "shell",
+			"command": "pnpm dev --deploy",
+			"options": {
+				"env": {
+					"ROUTER": "${env:ROUTER}",
+					"LUCI_URL": "${env:LUCI_URL}",
+					"LISTEN": "${env:LISTEN}"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "dev",
+				"pattern": {
+					"regexp": "^\\[dev\\] (.+); waiting for the next change$",
+					"message": 1
+				},
+				"background": {
+					"activeBegins": true,
+					"beginsPattern": "^\\[dev\\] (Proxying|Access URLs)",
+					"endsPattern": "^\\[dev\\] built"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Preview: dev",
+			"detail": "Flame and strip preview at http://localhost:3000, no router",
+			"type": "shell",
+			"command": "pnpm dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "dev",
+				"pattern": {
+					"regexp": "^\\[dev\\] (.+); waiting for the next change$",
+					"message": 1
+				},
+				"background": {
+					"activeBegins": true,
+					"beginsPattern": "^\\[dev\\] (Proxying|Access URLs)",
+					"endsPattern": "^\\[dev\\] built"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		}
+	]
+}
