@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status Light Preview</title>
+<style>
+	:root {
+		--bg: #15171a;
+		--panel: #1e2125;
+		--line: #2e3238;
+		--text: #e4e6e9;
+		--muted: #8b9199;
+		--accent: #3d7bff;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		background: var(--bg);
+		color: var(--text);
+		font: 14px/1.4 system-ui, sans-serif;
+	}
+	main {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 320px;
+		gap: 16px;
+		max-width: 1280px;
+		margin: 0 auto;
+		padding: 16px;
+	}
+	@media (max-width: 860px) {
+		main { grid-template-columns: minmax(0, 1fr); }
+	}
+	h1 { font-size: 16px; margin: 0 0 12px; font-weight: 600; }
+	h2 {
+		font-size: 12px;
+		margin: 16px 0 8px;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: .06em;
+	}
+	h2:first-child { margin-top: 0; }
+	.stage canvas { display: block; background: #000; border-radius: 6px; max-width: 100%; }
+	#screen { width: 100%; image-rendering: pixelated; }
+	#strip { width: 100%; height: 48px; margin-top: 12px; }
+	aside {
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		padding: 12px;
+		align-self: start;
+	}
+	label.row {
+		display: grid;
+		grid-template-columns: 96px minmax(0, 1fr) 40px;
+		align-items: center;
+		gap: 8px;
+		margin: 4px 0;
+	}
+	label.row output { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+	input[type=range] { width: 100%; accent-color: var(--accent); }
+	select { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px; }
+	input[type=color] { width: 100%; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+	input[type=color]:disabled { opacity: .3; }
+	.buttons { display: flex; gap: 8px; margin-top: 12px; }
+	button {
+		flex: 1;
+		background: var(--bg);
+		color: var(--text);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		padding: 6px;
+		cursor: pointer;
+	}
+	button:hover { border-color: var(--accent); }
+	textarea {
+		width: 100%;
+		height: 140px;
+		margin-top: 8px;
+		background: var(--bg);
+		color: var(--muted);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		font: 12px/1.4 ui-monospace, monospace;
+		resize: vertical;
+	}
+	.note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+	#error { color: #ff7a7a; }
+</style>
+</head>
+<body>
+<main>
+	<section class="stage">
+		<h1>Status Light Preview</h1>
+		<canvas id="screen" width="320" height="170"></canvas>
+		<canvas id="strip" width="1200" height="48"></canvas>
+		<p class="note">The flame and strip crates as WebAssembly: the code the boards run. The strip is shown at full brightness, as while online.</p>
+		<p class="note" id="error"></p>
+	</section>
+	<aside>
+		<div id="controls"></div>
+		<div class="buttons">
+			<button id="reset" type="button">Defaults</button>
+			<button id="copy" type="button">Copy settings</button>
+		</div>
+		<textarea id="json" readonly spellcheck="false" aria-label="Settings JSON"></textarea>
+		<p class="note">The values you changed, for a board's entry in /etc/status-light.json.</p>
+	</aside>
+</main>
+<script type="module" src="preview.js"></script>
+</body>
+</html>

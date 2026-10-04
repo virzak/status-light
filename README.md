@@ -103,7 +103,9 @@ Flint 4): a form for the same file, with boards currently plugged in offered by
 serial number. The page is written in TypeScript (`luci-src/status-light.ts`), so
 build it first; that type-checks it against declarations for the router's LuCI
 (openwrt-25.12) from [luci-types](https://github.com/virzak/luci-types) and
-compiles it into `luci/www/luci-static/resources/view/status-light.js`. Then copy
+compiles it into `luci/www/luci-static/resources/view/status-light.js`. It also
+builds `firmware/web`, the flame and strip crates as WebAssembly, for the page's
+live previews (`rustup target add wasm32-unknown-unknown` once). Then copy
 the files (only files, so existing directories keep their owner and permissions)
 onto the router and reload rpcd:
 
@@ -114,6 +116,26 @@ pnpm run luci
   rm -f /tmp/luci-indexcache*; rm -rf /tmp/luci-modulecache
   /etc/init.d/rpcd reload"'
 ```
+
+### Preview and development loop
+
+`pnpm dev` serves a preview at http://localhost:3000: the flame and the strip,
+with a control for every setting, running the same code as the boards (the
+flame and strip crates built to WebAssembly by `firmware/web`). It needs no
+router and no login. The values you change are kept in the address, so a link
+shares them, and the page shows them as JSON for the settings file. Saving any
+of the crates rebuilds the module and reloads the page.
+
+With a router, it also builds the settings page and copies it there on every
+change, and relays the router's LuCI at http://localhost:3000/cgi-bin/luci
+(log in there once):
+
+```
+ROUTER=user@router-address LUCI_URL=http://router-address:8080 pnpm dev
+```
+
+It serves on this computer only; add `LISTEN=` with this computer's LAN address
+to open it from a phone too.
 
 The page can only read and write `/etc/status-light.json` (plus read-only USB
 device info), per `usr/share/rpcd/acl.d/luci-app-status-light.json`.
