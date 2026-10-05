@@ -1,9 +1,14 @@
 # status-light
 
-Internet status indicator for the GL.iNet Flint 4 (GL-BE14000) router. A monitor
-on the router decides the state and drives a small display board plugged into a
-USB port, and the router's own built-in LCD. Two USB boards are supported, both
-ESP32-S3:
+Internet status light for OpenWrt routers. A monitor on the router decides the
+state and drives small boards plugged into its USB ports; on the GL.iNet Flint 4
+it also drives the router's own LCD (see `devices/`).
+
+Try the flame and the LED strip patterns in the browser:
+https://virzak.github.io/status-light/ (the boards' own code, built to
+WebAssembly, with a control for every setting).
+
+Two USB boards are supported, both ESP32-S3:
 
 - `firmware/zero-s3` - a Waveshare ESP32-S3-Zero: its WS2812 LED and an optional
   addressable LED strip (Rust).
