@@ -1,0 +1,76 @@
+# The flame and strip preview (firmware/web) as a public demo on GitHub Pages.
+# Pull requests build it as a check; master also deploys it.
+name: Pages demo
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - firmware/web/**
+      - firmware/flame/**
+      - firmware/strip/**
+      - .github/workflows/pages.yml
+  pull_request:
+    paths:
+      - firmware/web/**
+      - firmware/flame/**
+      - firmware/strip/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+env:
+  ACT:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # A public repo: GitHub-hosted runners, never self-hosted.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Build the WebAssembly module
+        run: cargo build --release --locked --target wasm32-unknown-unknown --manifest-path firmware/web/Cargo.toml
+
+      - name: Assemble the site
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          time=$(date -u +%FT%TZ)
+          mkdir -p site/wasm
+          cp -r firmware/web/www/. site/
+          cp firmware/web/target/wasm32-unknown-unknown/release/web.wasm site/wasm/
+          # Which version is deployed: the page's build tag and build-info.json.
+          sed -i "s|<meta name=\"build\" content=\"dev\">|<meta name=\"build\" content=\"$sha $time\">|" site/index.html
+          grep -q "content=\"$sha $time\"" site/index.html
+          printf '{ "sha": "%s", "time": "%s", "branch": "%s" }\n' "$sha" "$time" "$GITHUB_REF_NAME" > site/build-info.json
+          ls -l site site/wasm
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Publishing needs GitHub itself, so it is skipped under act.
+      - id: deployment
+        if: ${{ !env.ACT }}
+        uses: actions/deploy-pages@v4

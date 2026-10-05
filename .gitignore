@@ -17,3 +17,4 @@ node_modules/
 # Compiled from luci-src/ by `pnpm run luci`
 /luci/www/luci-static/resources/view/status-light.js
 /luci/www/luci-static/resources/status-light/
+/site/
