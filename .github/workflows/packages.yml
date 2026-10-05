@@ -50,7 +50,11 @@ jobs:
     # A public repo: GitHub-hosted runners, never self-hosted.
     runs-on: ubuntu-latest
     steps:
+      # A pull request's own head commit, not GitHub's merge of it, so the
+      # packages' version names a commit that exists on the branch.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: pnpm/action-setup@v4
 

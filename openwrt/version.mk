@@ -1,18 +1,23 @@
-# Shared by the feed's packages: the repo root, and a version from git in
-# OpenWrt's own snapshot form (as jsonfilter's 2026.03.16~b9034210), the date
-# and short hash of the last commit. Included from a package directory, so
-# CURDIR is openwrt/<package> in this repo (make resolves the feed's symlinks).
+# Shared by the feed's packages: the repo root, and the version in OpenWrt's
+# own snapshot form (as jsonfilter's 2026.03.16~b9034210), the date and short
+# hash of the last commit. Included from a package directory, so CURDIR is
+# openwrt/<package> (make resolves the feed's symlinks).
+#
+# scripts/build-packages.sh works it out from git and passes it in as
+# STATUS_LIGHT_VERSION, since the SDK container gets the files without .git.
+# Building in a checkout without it, git is asked directly.
 
 STATUS_LIGHT_ROOT:=$(abspath $(CURDIR)/../..)
-STATUS_LIGHT_GIT:=git -c safe.directory='*' -C $(STATUS_LIGHT_ROOT)
 
-STATUS_LIGHT_DATE:=$(shell $(STATUS_LIGHT_GIT) log -1 --format=%cd --date=format:%Y.%m.%d)
-STATUS_LIGHT_HASH:=$(shell $(STATUS_LIGHT_GIT) rev-parse --short=8 HEAD)
-ifeq ($(STATUS_LIGHT_DATE),)
-  $(error cannot read git in $(STATUS_LIGHT_ROOT) for the version; is it a git checkout git may read?)
+ifeq ($(STATUS_LIGHT_VERSION),)
+  STATUS_LIGHT_GIT:=git -C $(STATUS_LIGHT_ROOT)
+  STATUS_LIGHT_VERSION:=$(shell $(STATUS_LIGHT_GIT) log -1 --format=%cd --date=format:%Y.%m.%d)~$(shell $(STATUS_LIGHT_GIT) rev-parse --short=8 HEAD)
+endif
+ifeq ($(filter-out ~,$(STATUS_LIGHT_VERSION)),)
+  $(error no version: set STATUS_LIGHT_VERSION, or build in a git checkout of the repo)
 endif
 
-PKG_VERSION:=$(STATUS_LIGHT_DATE)~$(STATUS_LIGHT_HASH)
+PKG_VERSION:=$(STATUS_LIGHT_VERSION)
 PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=Victor Irzak <victor.irzak@zomp.com>
