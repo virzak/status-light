@@ -17,3 +17,7 @@ trim_trailing_whitespace = false
 [luci-src/*.ts]
 indent_style = tab
 indent_size = 4
+
+# Make requires tabs in recipes.
+[{Makefile,*.mk}]
+indent_style = tab

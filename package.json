@@ -14,5 +14,6 @@
     "luci-types": "github:virzak/luci-types#79deb13202fac41ad6503e051d117de0855b325b",
     "prettier": "^3.9.9",
     "typescript": "5.9.3"
-  }
+  },
+  "packageManager": "pnpm@12.8.1"
 }
