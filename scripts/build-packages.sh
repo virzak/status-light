@@ -28,8 +28,10 @@ SDK_IMAGE=${SDK_IMAGE:-ghcr.io/openwrt/sdk:mediatek-filogic-openwrt-25.12}
 RUST_IMAGE=${RUST_IMAGE:-messense/rust-musl-cross:aarch64-musl}
 DOCKER=${DOCKER:-docker}
 
-# The version, from git here, since the containers get no .git.
-STATUS_LIGHT_VERSION="$(git log -1 --format=%cd --date=format:%Y.%m.%d)~$(git rev-parse --short=8 HEAD)"
+# The version, from git here, since the containers get no .git: the last
+# commit's UTC date and time, then its hash. The time keeps two builds on the
+# same day in order; apk would otherwise compare the hashes.
+STATUS_LIGHT_VERSION="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y.%m.%d.%H%M%S)~$(git rev-parse --short=8 HEAD)"
 
 # The tracked files plus the given build outputs, as a tar stream.
 sources() {

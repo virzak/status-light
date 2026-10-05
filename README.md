@@ -82,8 +82,8 @@ reinstall the packages afterwards.
 packages with the OpenWrt 25.12 SDK for mediatek/filogic in its container,
 into `artifacts/packages/`. It needs pnpm, cargo with the
 `wasm32-unknown-unknown` target, and docker; set `DOCKER=podman` to use Podman.
-The version comes from git: the last commit's date and hash, as
-`2026.10.05~a7c8d7d7`.
+The version comes from git: the last commit's UTC date and time, then its hash,
+as `2026.10.05.170720~321ea8c6`, so newer commits always sort higher.
 
 ## Device extras
 
