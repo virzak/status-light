@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Status Light Preview</title>
+<!-- CI replaces "dev" with the commit and build time (see .github/workflows/pages.yml). -->
+<meta name="build" content="dev">
 <style>
   :root {
     --bg: #15171a;
@@ -85,6 +87,7 @@
     resize: vertical;
   }
   .note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .note a { color: var(--accent); }
   #error { color: #ff7a7a; }
 </style>
 </head>
@@ -96,6 +99,10 @@
     <canvas id="strip" width="1200" height="48"></canvas>
     <p class="note">The flame and strip crates as WebAssembly: the code the boards run. The strip is shown at full brightness, as while online.</p>
     <p class="note" id="error"></p>
+    <p class="note">
+      <a href="https://github.com/virzak/status-light">status-light on GitHub</a>:
+      an internet status light for OpenWrt routers. Build <span id="build">dev</span>.
+    </p>
   </section>
   <aside>
     <div id="controls"></div>

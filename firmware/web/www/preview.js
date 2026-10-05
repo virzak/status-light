@@ -283,6 +283,11 @@ async function main() {
   requestAnimationFrame(frame);
 }
 
+// Which build this is: "dev" locally, the commit and build time on the demo.
+const build = document.querySelector('meta[name=build]')?.content ?? 'dev';
+document.getElementById('build').textContent = build;
+console.info(`status-light preview, build ${build}`);
+
 main().catch((e) => {
   document.getElementById('error').textContent = `Preview unavailable: ${e.message}`;
 });
