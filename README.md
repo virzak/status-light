@@ -33,6 +33,7 @@ LED and its strip.
   by USB vendor ID `303a`, checks connectivity every 5 s and writes the state to
   the board and to `/tmp/netled.state`.
 - `router/netled.init` - procd service, installed as `/etc/init.d/netled`.
+- `openwrt/` - the OpenWrt package feed (`scripts/build-packages.sh` builds it).
 - `devices/` - extras for specific routers (see "Device extras" below).
 - `firmware/zero-s3/` - Rust (esp-hal) for the ESP32-S3-Zero and its LED strip;
   build, wiring and flash notes live in that directory.
@@ -51,17 +52,38 @@ LED and its strip.
 
 ## Installing on the router
 
-Set `ROUTER` to the SSH target of the router, e.g. `ROUTER=admin@192.168.8.1`.
+On OpenWrt 25.12 or later (apk), install the packages from `openwrt/`:
+
+- `status-light` - netled, its service and the default `/etc/status-light.json`
+  (your edits are kept across upgrades). Pulls in `kmod-usb-acm` and
+  `jsonfilter`.
+- `luci-app-status-light` - the settings page, under Services > Status Light.
+- `status-light-flame-screen` - the GL.iNet Flint 4's LCD flame (see
+  `devices/`).
+
+Take the `.apk` files from the latest "OpenWrt packages" run under Actions
+(artifact `openwrt-packages`), or build them with `sh scripts/build-packages.sh`
+(see below). Then, with `ROUTER` set to the router's SSH target, e.g.
+`ROUTER=admin@192.168.8.1`:
 
 ```
-tar cf - -C router netled netled.init | ssh "$ROUTER" 'cd /tmp && tar xf - && sudo sh -c "
-  tr -d \"\\r\" < netled > /usr/bin/netled && chmod 755 /usr/bin/netled
-  tr -d \"\\r\" < netled.init > /etc/init.d/netled && chmod 755 /etc/init.d/netled
-  /etc/init.d/netled enable && /etc/init.d/netled restart"'
+scp -O status-light-*.apk luci-app-status-light-*.apk "$ROUTER:/tmp/"
+ssh "$ROUTER" 'sudo apk add --allow-untrusted /tmp/*status-light*.apk'
 ```
 
-Add `/usr/bin/netled` and `/etc/init.d/netled` to `/etc/sysupgrade.conf` so they
-survive firmware upgrades.
+`--allow-untrusted` because the packages are signed with the build's own key,
+not one the router trusts. Installing through apk also lets LuCI notice the new
+page, so no hard refresh is needed. A firmware upgrade keeps your settings file;
+reinstall the packages afterwards.
+
+### Building the packages
+
+`sh scripts/build-packages.sh` builds the page and the flame binary, then the
+packages with the OpenWrt 25.12 SDK for mediatek/filogic in its container,
+into `artifacts/packages/`. It needs pnpm, cargo with the
+`wasm32-unknown-unknown` target, and docker; set `DOCKER=podman` to use Podman.
+The version comes from git: the last commit's UTC date and time, then its hash,
+as `2026.10.05.170720~321ea8c6`, so newer commits always sort higher.
 
 ## Device extras
 

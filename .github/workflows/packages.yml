@@ -1,0 +1,80 @@
+# The OpenWrt packages (the feed in openwrt/), built with the OpenWrt 25.12 SDK
+# for mediatek/filogic by scripts/build-packages.sh. The .apk files are kept as
+# the run's artifact.
+name: OpenWrt packages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - openwrt/**
+      - router/**
+      - luci/**
+      - luci-src/**
+      - devices/**
+      - firmware/web/**
+      - firmware/flame/**
+      - firmware/strip/**
+      - scripts/build-packages.sh
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/packages.yml
+  pull_request:
+    paths:
+      - openwrt/**
+      - router/**
+      - luci/**
+      - luci-src/**
+      - devices/**
+      - firmware/web/**
+      - firmware/flame/**
+      - firmware/strip/**
+      - scripts/build-packages.sh
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/packages.yml
+  workflow_dispatch:
+
+env:
+  ACT:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # A public repo: GitHub-hosted runners, never self-hosted.
+    runs-on: ubuntu-latest
+    steps:
+      # A pull request's own head commit, not GitHub's merge of it, so the
+      # packages' version names a commit that exists on the branch.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the packages
+        run: sh scripts/build-packages.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-packages
+          path: artifacts/packages/*.apk
+          if-no-files-found: error
+          retention-days: 5
