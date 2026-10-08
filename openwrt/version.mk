@@ -1,8 +1,9 @@
 # Shared by the feed's packages: the repo root, and the version, close to
 # OpenWrt's own snapshot form (jsonfilter's 2026.03.16~b9034210): the last
 # commit's UTC date and time, then its short hash, as
-# 2026.10.05.170720~321ea8c6. The time keeps same-day builds in order. Included from a package directory, so CURDIR is
-# openwrt/<package> (make resolves the feed's symlinks).
+# 2026.10.05.170720~321ea8c6. The time keeps same-day builds in order.
+# Included from a package directory, so CURDIR is openwrt/<package> (make
+# resolves the feed's symlinks).
 #
 # scripts/build-packages.sh works it out from git and passes it in as
 # STATUS_LIGHT_VERSION, since the SDK container gets the files without .git.
