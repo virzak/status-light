@@ -16,6 +16,7 @@
 #
 # Needs pnpm, cargo with the wasm32-unknown-unknown target, git, GNU tar, and
 # docker, or any compatible command in DOCKER (DOCKER=podman).
+# SDK_ARCHIVE names a local copy of the SDK archive to set the SDK up from.
 
 set -e
 
@@ -53,6 +54,16 @@ sources | $DOCKER run -i --rm -v status-light-cargo:/root/.cargo/registry \
 
 # Empty rather than remove it: Windows will not remove a folder that a shell
 # or editor has open.
+# With SDK_ARCHIVE, a copy of the SDK's .tar.zst (CI keeps one in its cache),
+# set an empty SDK volume up from it instead of downloading it in there.
+if [ -n "$SDK_ARCHIVE" ] && [ -f "$SDK_ARCHIVE" ]; then
+  $DOCKER run -i --rm -v status-light-sdk:/builder "$SDK_IMAGE" bash -c '
+    cd /builder
+    if [ -f feeds.conf.default ]; then cat >/dev/null; exit 0; fi
+    tar --zstd -x --strip=1 --no-same-owner -C /builder
+  ' < "$SDK_ARCHIVE"
+fi
+
 mkdir -p "$out"
 rm -f "$out"/*.apk
 sources \

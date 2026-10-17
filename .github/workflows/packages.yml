@@ -69,8 +69,33 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The SDK archive (about 240 MB) downloads slowly from GitHub's runners,
+      # at times 10 minutes, so keep it in the cache, keyed by its checksum.
+      # Under act the SDK volume persists between runs instead.
+      - name: Find the SDK archive
+        id: sdk
+        if: ${{ !env.ACT }}
+        run: |
+          url=https://downloads.openwrt.org/releases/25.12-SNAPSHOT/targets/mediatek/filogic
+          line=$(curl -fsSL "$url/sha256sums" | grep -E 'openwrt-sdk-.*Linux-x86_64\.tar\.zst$')
+          echo "sha=${line%% *}" >> "$GITHUB_OUTPUT"
+          echo "url=$url/${line##*\*}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        if: ${{ !env.ACT }}
+        with:
+          path: ~/openwrt-sdk.tar.zst
+          key: openwrt-sdk-${{ steps.sdk.outputs.sha }}
+
+      - name: Download the SDK archive
+        if: ${{ !env.ACT }}
+        run: |
+          f=~/openwrt-sdk.tar.zst
+          [ -f "$f" ] || curl -fsSL -o "$f" "${{ steps.sdk.outputs.url }}"
+          echo "${{ steps.sdk.outputs.sha }}  $f" | sha256sum -c -
+
       - name: Build the packages
-        run: sh scripts/build-packages.sh
+        run: SDK_ARCHIVE=~/openwrt-sdk.tar.zst sh scripts/build-packages.sh
 
       - uses: actions/upload-artifact@v4
         with:
