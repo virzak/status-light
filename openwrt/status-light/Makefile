@@ -43,4 +43,13 @@ define Package/status-light/install
 	$(INSTALL_DATA) ./files/status-light.upgrade $(1)/lib/upgrade/keep.d/status-light
 endef
 
+# OpenWrt enables a package's services on a fresh install only; enable the
+# restore service on upgrades from versions without it too.
+define Package/status-light/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+/etc/init.d/status-light-restore enable
+exit 0
+endef
+
 $(eval $(call BuildPackage,status-light))
