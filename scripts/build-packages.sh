@@ -51,8 +51,10 @@ sources | $DOCKER run -i --rm -v status-light-cargo:/root/.cargo/registry \
   " | tar -x
 [ -s "$flame_bin" ]
 
-rm -rf "$out"
+# Empty rather than remove it: Windows will not remove a folder that a shell
+# or editor has open.
 mkdir -p "$out"
+rm -f "$out"/*.apk
 sources \
   luci/www/luci-static/resources/view/status-light.js \
   luci/www/luci-static/resources/status-light/preview.wasm \

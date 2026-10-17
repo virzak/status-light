@@ -1,0 +1,4 @@
+/etc/status-light.json
+/etc/status-light/packages/
+/etc/init.d/status-light-restore
+/etc/rc.d/S95status-light-restore

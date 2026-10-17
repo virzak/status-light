@@ -67,14 +67,18 @@ Take the `.apk` files from the latest "OpenWrt packages" run under Actions
 `ROUTER=admin@192.168.8.1`:
 
 ```
-scp -O status-light-*.apk luci-app-status-light-*.apk "$ROUTER:/tmp/"
-ssh "$ROUTER" 'sudo apk add --allow-untrusted /tmp/*status-light*.apk'
+scp -O *status-light*.apk "$ROUTER:/tmp/"
+ssh "$ROUTER" 'sudo sh -c "mkdir -p /etc/status-light/packages
+  rm -f /etc/status-light/packages/*.apk
+  mv /tmp/*status-light*.apk /etc/status-light/packages/
+  apk add --allow-untrusted /etc/status-light/packages/*.apk"'
 ```
 
 `--allow-untrusted` because the packages are signed with the build's own key,
 not one the router trusts. Installing through apk also lets LuCI notice the new
-page, so no hard refresh is needed. A firmware upgrade keeps your settings file;
-reinstall the packages afterwards.
+page, so no hard refresh is needed. A firmware upgrade keeps files but not
+installed packages; the packages kept in `/etc/status-light/packages` are
+reinstalled on the first boot after one, with your settings.
 
 ### Building the packages
 
