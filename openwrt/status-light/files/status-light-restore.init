@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+# A firmware upgrade keeps files but not installed packages. sysupgrade
+# keeps this script, its boot link and /etc/status-light/packages (see
+# /lib/upgrade/keep.d/status-light), so on the first boot after an upgrade
+# it reinstalls status-light from there, offline. Otherwise it does nothing.
+
+START=95
+
+boot() {
+  apk info -e status-light >/dev/null 2>&1 && return 0
+  set -- /etc/status-light/packages/*.apk
+  [ -f "$1" ] || return 0
+  logger -t status-light "reinstalling after a firmware upgrade: $*"
+  apk add --no-network --allow-untrusted "$@" 2>&1 | logger -t status-light
+}
