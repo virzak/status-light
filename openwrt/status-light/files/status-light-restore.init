@@ -12,4 +12,6 @@ boot() {
   [ -f "$1" ] || return 0
   logger -t status-light "reinstalling after a firmware upgrade: $*"
   apk add --no-network --allow-untrusted "$@" 2>&1 | logger -t status-light
+  # The kept settings stay in place; drop the default copy apk set aside.
+  rm -f /etc/status-light.json.apk-new
 }
