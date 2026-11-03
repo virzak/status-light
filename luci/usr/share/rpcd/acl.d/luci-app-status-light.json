@@ -5,6 +5,8 @@
       "file": {
         "/etc/status-light.json": ["read"],
         "/etc/init.d/flame-screen": ["read"],
+        "/tmp/status-light/boards": ["list"],
+        "/tmp/status-light/boards/*": ["read"],
         "/sys/bus/usb/devices": ["list"],
         "/sys/bus/usb/devices/*/idVendor": ["read"],
         "/sys/bus/usb/devices/*/serial": ["read"],

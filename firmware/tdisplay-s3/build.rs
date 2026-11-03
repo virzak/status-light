@@ -1,4 +1,7 @@
+include!("../version.rs");
+
 fn main() {
+    firmware_version();
     // esp-hal's linker script. Must be referenced for a bootable image, and must
     // come last so it does not clash with other scripts.
     println!("cargo:rustc-link-arg=-Tlinkall.x");

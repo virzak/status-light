@@ -105,6 +105,34 @@ pub fn parse_line(raw: &[u8]) -> Line<'_> {
     }
 }
 
+/// The status line a board sends back after each command (PROTOCOL.md):
+/// `I <board> <version> <uptime in seconds>`. It fits one 64-byte USB packet,
+/// newline included, so a router that is not reading loses whole lines, never
+/// half of one. `None` if the parts are too long for that.
+pub fn status_line<'a>(buf: &'a mut [u8; 64], board: &str, version: &str, uptime_s: u64) -> Option<&'a [u8]> {
+    struct Cursor<'b> {
+        buf: &'b mut [u8],
+        len: usize,
+    }
+    impl core::fmt::Write for Cursor<'_> {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            let end = self.len + s.len();
+            // Keep the last byte free; it is never used, so a full line stays
+            // short of 64 and needs no zero-length packet after it.
+            if end >= self.buf.len() {
+                return Err(core::fmt::Error);
+            }
+            self.buf[self.len..end].copy_from_slice(s.as_bytes());
+            self.len = end;
+            Ok(())
+        }
+    }
+    let mut c = Cursor { buf, len: 0 };
+    core::fmt::write(&mut c, format_args!("I {board} {version} {uptime_s}\n")).ok()?;
+    let len = c.len;
+    Some(&buf[..len])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,4 +176,23 @@ mod tests {
         assert_eq!(feed(&mut lb, b"B\n"), Some(Line::Command(Command::Online)));
     }
 
+    #[test]
+    fn status_lines() {
+        let mut buf = [0; 64];
+        let version = "2026.11.03.120000~abcd1234+dirty";
+        assert_eq!(
+            status_line(&mut buf, "tdisplay-s3", version, u64::from(u32::MAX)),
+            Some(&b"I tdisplay-s3 2026.11.03.120000~abcd1234+dirty 4294967295\n"[..])
+        );
+        assert_eq!(status_line(&mut buf, "x", &"9".repeat(60), 0), None);
+    }
+
+    #[test]
+    fn status_lines_are_not_commands() {
+        // The router's tty echoes what a board sends back to it.
+        let mut buf = [0; 64];
+        let line = status_line(&mut buf, "zero-s3", "unknown", 5).unwrap().to_vec();
+        let mut lb = LineBuf::new();
+        assert_eq!(feed(&mut lb, &line), Some(Line::Unknown));
+    }
 }

@@ -24,6 +24,28 @@ router side does not change per board.
 | `W` | white    | Free/unused; test or custom.                      |
 | `O` | off      | Blank the display.                                |
 
+## Status replies
+
+After each command a board answers with one line:
+
+```
+I <firmware> <version> <uptime>
+```
+
+- `firmware` names the firmware (`zero-s3`, `tdisplay-s3`), `version` is its
+  version from git (`YYYY.MM.DD.HHMMSS~hash8`, plus `+dirty` for a build with
+  uncommitted changes) and `uptime` is seconds since the board started.
+- The line, newline included, stays under 64 bytes, one USB packet. A board
+  drops it if the router does not take it within 50 ms, so a router that is not
+  reading never stalls the display.
+- netled keeps each board's latest line in
+  `/tmp/status-light/boards/<usb serial>`; the settings page shows it, and the
+  file's age shows when the board last answered.
+- The router's tty echoes these lines back to the board, which ignores them as
+  unknown lines.
+- The line only proves the board is alive: a WS2812 strip cannot answer, so a
+  strip that has lost power or data goes unnoticed.
+
 ## Watchdog
 
 If the board receives no recognized command for 60 s, it must show a distinct
