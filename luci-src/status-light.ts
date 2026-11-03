@@ -18,6 +18,11 @@ const USB = '/sys/bus/usb/devices';
 // Installed with flame-screen, which draws on a router's own LCD (GL.iNet Flint
 // 4, under devices/); the page shows the LCD settings only when it is there.
 const FLAME_SCREEN = '/etc/init.d/flame-screen';
+// netled keeps each board's latest status line here, one file per USB serial.
+const BOARD_STATUS = '/tmp/status-light/boards';
+// A board answers every state command, sent each 5 s; older than this, it has
+// stopped answering.
+const STATUS_STALE = 30;
 
 /** A board or LCD entry in the settings file. */
 interface Entry {
@@ -41,6 +46,13 @@ type FormSection = Record<string, unknown>;
  * switch, stored as a JSON boolean, 'choice' one of CHOICES[key], stored as its
  * name, and 'color' a #rrggbb colour, stored as that string. */
 type Field = readonly [key: string, label: string, datatype: string, description?: string];
+
+/** A board's latest status line, "I <firmware> <version> <uptime>", and when
+ * it arrived (seconds since the epoch, router time). */
+interface BoardStatus {
+	line: string;
+	mtime: number;
+}
 
 /** A USB status board currently plugged in. */
 interface Board {
@@ -132,6 +144,32 @@ function presentBoards(): Promise<Board[]> {
 				(vid.trim() == '303a' && serial.trim()) ? { serial: serial.trim(), product: product.trim() } : null);
 		})
 	)).then((boards) => boards.filter((b): b is Board => b != null));
+}
+
+// The boards' latest status lines, by USB serial.
+function boardStatus(): Promise<Record<string, BoardStatus>> {
+	return L.resolveDefault(fs.list(BOARD_STATUS), []).then((entries: LuCI.fs.FileStatEntry[]) => Promise.all(
+		entries.filter((e) => e.type == 'file' && !e.name.endsWith('.tmp')).map((e) =>
+			L.resolveDefault(fs.read(`${BOARD_STATUS}/${e.name}`), '').then((line: string) =>
+				[ e.name, { line: line.trim(), mtime: e.mtime } ] as const))
+	)).then((pairs) => Object.fromEntries(pairs));
+}
+
+// 93784 -> "1 d 2 h 3 min".
+function duration(seconds: number): string {
+	const d = Math.floor(seconds / 86400), h = Math.floor(seconds / 3600) % 24, m = Math.floor(seconds / 60) % 60;
+	const parts = [ d ? `${d} d` : '', (d || h) ? `${h} h` : '', `${m} min` ].filter(Boolean);
+	return seconds < 60 ? _('%d s').format(seconds) : parts.join(' ');
+}
+
+// What a board last reported, for its General tab.
+function describeStatus(status: BoardStatus | undefined): string {
+	const [ , firmware, version, uptime ] = (status?.line ?? '').split(' ');
+	if (!status || !uptime)
+		return _('No reply yet. Its firmware may predate status replies, or it is not plugged in.');
+	const text = _('%s %s, up %s').format(firmware, version, duration(parseInt(uptime, 10)));
+	const age = Math.round(Date.now() / 1000 - status.mtime);
+	return (age > STATUS_STALE) ? _('%s; no reply for %s').format(text, duration(age)) : text;
 }
 
 // { brightness, wisps: { sway } } -> { brightness, wisps_sway } for the form.
@@ -479,15 +517,16 @@ export default view.extend({
 	// The file's LCD settings, kept as they are on routers without flame-screen.
 	keptLcd: undefined as Entry | undefined,
 
-	load(): Promise<[ string, Board[], boolean ]> {
+	load(): Promise<[ string, Board[], boolean, Record<string, BoardStatus> ]> {
 		return Promise.all([
 			L.resolveDefault(fs.read(FILE), '{}'),
 			presentBoards(),
-			L.resolveDefault(fs.stat(FLAME_SCREEN).then(() => true), false)
+			L.resolveDefault(fs.stat(FLAME_SCREEN).then(() => true), false),
+			boardStatus()
 		]);
 	},
 
-	render([ text, present, hasScreen ]: [ string, Board[], boolean ]) {
+	render([ text, present, hasScreen, status ]: [ string, Board[], boolean, Record<string, BoardStatus> ]) {
 		let settings: Settings = {};
 		try {
 			const parsed: unknown = JSON.parse(text || '{}');
@@ -545,6 +584,11 @@ export default view.extend({
 				sec['.name'] != section_id && String(sec.serial) == value);
 			return dup ? _('This board is already listed') : true;
 		};
+
+		const reported = boards.taboption('general', form.DummyValue, '_status', _('Status'),
+			_('What the board last reported: its firmware, version and uptime.'));
+		reported.cfgvalue = (section_id: string) =>
+			describeStatus(status[String(m.data.get('json', section_id, 'serial') ?? '')]);
 
 		o = boards.taboption('general', form.Value, 'name', _('Name'));
 		o.placeholder = _('e.g. tdisplay');

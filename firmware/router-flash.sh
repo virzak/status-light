@@ -32,7 +32,12 @@ else
 fi
 
 /etc/init.d/netled stop 2>/dev/null
-sleep 1
+# Wait for netled and its per-board readers to let go of the ports: a reader
+# left behind would take the board's replies to espflash.
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  pgrep -f /usr/bin/netled >/dev/null || break
+  sleep 1
+done
 echo "flashing $IMG -> $TTY"
 espflash flash --chip esp32s3 --port "$TTY" "$IMG"
 rc=$?

@@ -26,6 +26,52 @@ set_tty() { eval "tty_$1=\$2"; }
 get_ser() { eval "echo \"\${ser_$1}\""; }
 set_ser() { eval "ser_$1=\$2"; }
 
+# Each board answers every state command with a status line (PROTOCOL.md):
+# "I <firmware> <version> <uptime>". A reader per board, in the background so
+# a silent board never holds netled up, keeps the latest in
+# $BOARDS_DIR/<usb serial>, for the settings page; the file's age says when
+# the board last answered. Readers stop with netled (the trap below) or, if it
+# was killed outright, within 10 s; router-flash.sh waits for that, as a
+# leftover reader would take espflash's replies.
+BOARDS_DIR=/tmp/status-light/boards
+NETLED_PID=$$
+
+# read_board <usb serial> <tty>, with the tty on stdin. Lines are kept only
+# when they hold nothing but the characters a status line uses.
+read_board() {
+  f="$BOARDS_DIR/$1"
+  while kill -0 "$NETLED_PID" 2>/dev/null; do
+    # A timeout and a closed port look alike to busybox read: carry on while
+    # the port is there.
+    if IFS= read -r -t 10 line; then
+      case "$line" in
+        "I "*[!a-zA-Z0-9\ ._~+-]* | "I ") ;;
+        "I "*) echo "$line" > "$f.tmp" && mv "$f.tmp" "$f" ;;
+      esac
+    else
+      [ -e "$2" ] || break
+    fi
+  done
+}
+
+# start_reader <fd>: the board's reader, with only that board's tty open.
+start_reader() {
+  ser=$(get_ser "$1")
+  case "$ser" in '' | *[!A-Za-z0-9:_-]*) return ;; esac
+  mkdir -p "$BOARDS_DIR"
+  (exec 3>&- 4>&- 5>&- 6>&-; read_board "$ser" "$(get_tty "$1")") <&"$1" &
+  eval "reader_$1=$!"
+}
+
+stop_reader() {
+  r=$(eval "echo \"\${reader_$1}\"")
+  [ -n "$r" ] && kill "$r" 2>/dev/null
+  eval "reader_$1="
+}
+
+trap 'for fd in $FDS; do stop_reader "$fd"; done' EXIT
+trap 'exit 0' TERM INT
+
 # Write one line to the board on fd $1. A board whose USB link wedges (seen
 # when another device on the same hub keeps failing to enumerate) never takes
 # the data, and a plain write would then block netled forever and freeze every
@@ -93,6 +139,7 @@ sync_boards() {
     t=$(get_tty "$fd")
     if [ -n "$t" ] && [ ! -e "$t" ]; then
       eval "exec $fd>&-"
+      stop_reader "$fd"
       set_tty "$fd" ""
       set_ser "$fd" ""
       logger -t netled "lost $t"
@@ -107,10 +154,12 @@ sync_boards() {
     [ -n "$known" ] && continue
     for fd in $FDS; do
       [ -z "$(get_tty "$fd")" ] || continue
-      if eval "exec $fd>\"\$t\""; then
+      # Read-write: the board's status lines come back on the same port.
+      if eval "exec $fd<>\"\$t\""; then
         set_tty "$fd" "$t"
         set_ser "$fd" "$ser"
         logger -t netled "using $t (serial $ser)"
+        start_reader "$fd"
         send_settings "$fd"
       fi
       break
@@ -148,6 +197,7 @@ send_boards() {
       eval "stuck_$fd=1"
     else
       eval "exec $fd>&-"
+      stop_reader "$fd"
       set_tty "$fd" ""
       eval "stuck_$fd="
       logger -t netled "write failed on $t"
@@ -192,5 +242,7 @@ while true; do
   sync_boards
   check_settings
   send_boards "$state"
-  sleep "$INTERVAL"
+  # In the background, so a stop (TERM) is handled at once, not after it.
+  sleep "$INTERVAL" &
+  wait $!
 done

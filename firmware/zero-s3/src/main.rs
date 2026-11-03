@@ -17,16 +17,17 @@ use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant, Timer};
-use embedded_io_async::Read;
+use embedded_io_async::{Read, Write};
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::rmt::Rmt;
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
+use esp_hal::Async;
+use esp_hal::usb::usb_serial_jtag::{UsbSerialJtag, UsbSerialJtagTx};
 use esp_hal_smartled::{RmtSmartLeds, buffer_size, color_order};
 use smart_leds_trait::{RGB8, SmartLedsWriteAsync};
-use status_protocol::{Command, Line, LineBuf, parse_line};
+use status_protocol::{Command, Line, LineBuf, parse_line, status_line};
 use strip::{Params, Pattern};
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -209,6 +210,22 @@ fn identify(settings: &Settings, px: &mut [RGB8]) {
     }
 }
 
+/// This firmware's name in its status line.
+const BOARD: &str = "zero-s3";
+/// How long a status line may wait for the router to take it.
+const REPLY_WAIT: Duration = Duration::from_millis(50);
+
+/// Answer a command with the status line (PROTOCOL.md): the firmware, its
+/// version and the uptime. A router that is not reading must not stall the
+/// display, so the line is dropped after REPLY_WAIT.
+async fn reply(tx: &mut UsbSerialJtagTx<'_, Async>) {
+    let mut buf = [0; 64];
+    let uptime = Instant::now().as_secs();
+    if let Some(line) = status_line(&mut buf, BOARD, env!("FIRMWARE_VERSION"), uptime) {
+        let _ = select(Timer::after(REPLY_WAIT), tx.write_all(line)).await;
+    }
+}
+
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
@@ -237,7 +254,7 @@ async fn main(_spawner: Spawner) -> ! {
 
     // USB Serial/JTAG is the link to the router (vendor 303a, a ttyACM there).
     let usb = UsbSerialJtag::new(peripherals.USB_DEVICE).into_async();
-    let (mut rx, _tx) = usb.split();
+    let (mut rx, mut tx) = usb.split();
 
     let mut settings = Settings::default();
     let mut state = State::Boot;
@@ -288,6 +305,7 @@ async fn main(_spawner: Spawner) -> ! {
                     Line::Command(cmd) => {
                         last_cmd = Instant::now();
                         state = State::from(cmd);
+                        reply(&mut tx).await;
                     }
                     Line::Setting(key, value) => {
                         last_cmd = Instant::now();

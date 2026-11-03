@@ -24,14 +24,15 @@ use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::pixelcolor::{Rgb565, RgbColor, WebColors};
 use embedded_graphics::prelude::*;
 use embedded_graphics::text::{Alignment, Text};
-use embedded_io_async::Read;
+use embedded_io_async::{Read, Write};
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::usb::usb_serial_jtag::UsbSerialJtag;
+use esp_hal::Async;
+use esp_hal::usb::usb_serial_jtag::{UsbSerialJtag, UsbSerialJtagTx};
 use flame::wisps::{WispParams, Wisps};
 use lilygo_t_display_s3::{Board, FrameBuffer, HEIGHT, Lcd, WIDTH, resources};
-use status_protocol::{Command, Line, LineBuf, parse_line};
+use status_protocol::{Command, Line, LineBuf, parse_line, status_line};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -152,6 +153,22 @@ fn apply_setting(key: &str, value: &str, params: &mut WispParams, board: &mut Bo
     true
 }
 
+/// This firmware's name in its status line.
+const BOARD: &str = "tdisplay-s3";
+/// How long a status line may wait for the router to take it.
+const REPLY_WAIT: Duration = Duration::from_millis(50);
+
+/// Answer a command with the status line (PROTOCOL.md): the firmware, its
+/// version and the uptime. A router that is not reading must not stall the
+/// display, so the line is dropped after REPLY_WAIT.
+async fn reply(tx: &mut UsbSerialJtagTx<'_, Async>) {
+    let mut buf = [0; 64];
+    let uptime = Instant::now().as_secs();
+    if let Some(line) = status_line(&mut buf, BOARD, env!("FIRMWARE_VERSION"), uptime) {
+        let _ = select(Timer::after(REPLY_WAIT), tx.write_all(line)).await;
+    }
+}
+
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
@@ -188,7 +205,7 @@ async fn main(_spawner: Spawner) -> ! {
     // esp-println's logger uninitialised so nothing else owns this peripheral.
     // split() yields (rx, tx); async Read comes from embedded-io-async.
     let usb = UsbSerialJtag::new(peripherals.USB_DEVICE).into_async();
-    let (mut rx, _tx) = usb.split();
+    let (mut rx, mut tx) = usb.split();
 
     let mut state = State::Boot;
     render_static(&mut frame, &mut board.display, state);
@@ -242,6 +259,7 @@ async fn main(_spawner: Spawner) -> ! {
                                 render_static(&mut frame, &mut board.display, state);
                             }
                         }
+                        reply(&mut tx).await;
                     }
                     Line::Setting(key, value) => {
                         last_cmd = Instant::now();
